@@ -29,6 +29,7 @@ App.presets = (function () {
     ['Sala', 'Sofá 2 lugares', 1.60, 0.85],
     ['Sala', 'Sofá 3 lugares', 2.00, 0.90],
     ['Sala', 'Sofá retrátil', 2.20, 1.10, 'rect', [2.20, 1.60]],
+    ['Sala', 'Sofá-cama 150 cm', 1.50, 1.00, 'rect', [1.50, 1.92]],
     ['Sala', 'Sofá-cama 2 lug.', 1.80, 0.90, 'rect', [1.80, 1.90]],
     ['Sala', 'Sofá-cama 3 lug.', 2.10, 0.95, 'rect', [2.10, 2.00]],
     ['Sala', 'Poltrona-cama', 0.90, 0.90, 'rect', [0.90, 1.90]],
