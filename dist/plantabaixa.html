@@ -148,6 +148,16 @@ hr{border:0;border-top:1px solid var(--line);margin:6px 0}
 .cat-item span{font-size:11.5px;color:var(--ink-2)}
 .cat-item i{display:block;height:4px;border-radius:2px;margin-bottom:6px;background:var(--brand)}
 
+.shape-add{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.shape-add .btn{
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  padding:11px 4px;font-size:12.5px;
+}
+.sh{width:20px;height:15px;border:2px solid var(--ink-2);display:block}
+.sh-square{width:16px;height:16px}
+.sh-circle{width:16px;height:16px;border-radius:50%}
+.cat-item i.round{width:12px;height:12px;border-radius:50%;margin-bottom:5px}
+
 .field{margin-bottom:12px}
 .field label{display:block;font-size:12.5px;color:var(--ink-2);margin-bottom:4px}
 .field input,.field select{
@@ -260,7 +270,12 @@ hr{border:0;border-top:1px solid var(--line);margin:6px 0}
         <select id="catFilter"></select>
       </div>
       <div class="catalog" id="catalog"></div>
-      <button class="btn block" id="btnCustomItem">+ Móvel com medida própria</button>
+      <p class="muted small" style="margin:0 0 6px">Forma com a sua medida</p>
+      <div class="shape-add" id="shapeAdd">
+        <button class="btn" data-shape="rect"><span class="sh sh-rect"></span>Retângulo</button>
+        <button class="btn" data-shape="square"><span class="sh sh-square"></span>Quadrado</button>
+        <button class="btn" data-shape="circle"><span class="sh sh-circle"></span>Círculo</button>
+      </div>
       <p class="muted small">O móvel entra no centro da tela com as medidas reais. Arraste para posicionar, use a alça do canto para redimensionar e a alça de cima para girar.</p>
     </div>
 
@@ -340,21 +355,30 @@ hr{border:0;border-top:1px solid var(--line);margin:6px 0}
 
 <dialog class="dlg" id="itemDlg">
   <form method="dialog" id="itemForm">
-    <h2>Móvel com medida própria</h2>
+    <h2 id="itemDlgTitle">Móvel com medida própria</h2>
+    <div class="field">
+      <label for="iShape">Formato</label>
+      <select id="iShape">
+        <option value="rect">Retângulo</option>
+        <option value="square">Quadrado</option>
+        <option value="circle">Círculo</option>
+      </select>
+    </div>
     <div class="field">
       <label for="iName">Nome</label>
-      <input id="iName" required placeholder="Ex.: Guarda-roupa" autocomplete="off">
+      <input id="iName" placeholder="Ex.: Guarda-roupa" autocomplete="off">
     </div>
     <div class="row">
       <div class="field">
-        <label for="iW">Largura (m)</label>
+        <label for="iW" id="iWLabel">Largura (m)</label>
         <input id="iW" inputmode="decimal" required placeholder="1,50">
       </div>
-      <div class="field">
+      <div class="field" id="iHField">
         <label for="iH">Profundidade (m)</label>
-        <input id="iH" inputmode="decimal" required placeholder="0,60">
+        <input id="iH" inputmode="decimal" placeholder="0,60">
       </div>
     </div>
+    <p class="muted small" id="iHelp">Medidas em metros — pode usar vírgula.</p>
     <div class="dlg-actions">
       <button class="btn" value="cancel" formnovalidate>Cancelar</button>
       <button class="btn btn-primary" value="ok">Adicionar</button>
@@ -412,6 +436,22 @@ App.geo = (function () {
            Math.abs(p.y - item.y) <= item.h / 2 + pad;
   }
 
+  function pointInEllipse(x, y, item, pad) {
+    pad = pad || 0;
+    const p = toLocal(x, y, item);
+    const rx = item.w / 2 + pad, ry = item.h / 2 + pad;
+    if (rx <= 0 || ry <= 0) return false;
+    const dx = (p.x - item.x) / rx, dy = (p.y - item.y) / ry;
+    return dx * dx + dy * dy <= 1;
+  }
+
+  /* Ponto dentro do item, respeitando o formato (retângulo ou círculo/oval). */
+  function pointInItem(x, y, item, pad) {
+    return item.shape === 'circle'
+      ? pointInEllipse(x, y, item, pad)
+      : pointInRect(x, y, item, pad);
+  }
+
   function distToSegment(px, py, x1, y1, x2, y2) {
     const dx = x2 - x1, dy = y2 - y1;
     const len2 = dx * dx + dy * dy;
@@ -428,6 +468,13 @@ App.geo = (function () {
         x1: Math.min(item.x1, item.x2), y1: Math.min(item.y1, item.y2),
         x2: Math.max(item.x1, item.x2), y2: Math.max(item.y1, item.y2),
       };
+    }
+    if (item.shape === 'circle') {
+      // bbox exata de uma elipse girada
+      const a = d2r(item.rot || 0), rx = item.w / 2, ry = item.h / 2;
+      const hx = Math.hypot(rx * Math.cos(a), ry * Math.sin(a));
+      const hy = Math.hypot(rx * Math.sin(a), ry * Math.cos(a));
+      return { x1: item.x - hx, y1: item.y - hy, x2: item.x + hx, y2: item.y + hy };
     }
     const cs = corners(item);
     return {
@@ -451,7 +498,11 @@ App.geo = (function () {
     return Number.isFinite(v) ? v : NaN;
   }
 
-  return { clamp, snap, d2r, r2d, rot, toLocal, corners, pointInRect, distToSegment, bbox, num, m, m2, parseNum };
+  return {
+    clamp, snap, d2r, r2d, rot, toLocal, corners,
+    pointInRect, pointInEllipse, pointInItem, distToSegment, bbox,
+    num, m, m2, parseNum,
+  };
 })();
 </script>
 <script>
@@ -492,6 +543,11 @@ App.presets = (function () {
     ['Sala', 'Estante', 0.80, 0.35],
     ['Sala', 'Mesa jantar 4 lug.', 1.20, 0.80],
     ['Sala', 'Mesa jantar 6 lug.', 1.60, 0.90],
+    ['Sala', 'Mesa redonda 4 lug.', 1.00, 1.00, 'circle'],
+    ['Sala', 'Mesa redonda 6 lug.', 1.20, 1.20, 'circle'],
+    ['Sala', 'Mesa lateral redonda', 0.45, 0.45, 'circle'],
+    ['Sala', 'Puff', 0.55, 0.55, 'circle'],
+    ['Sala', 'Tapete redondo', 1.50, 1.50, 'circle'],
     ['Sala', 'Cadeira', 0.45, 0.45],
     // Cozinha
     ['Cozinha', 'Geladeira', 0.70, 0.70],
@@ -502,6 +558,7 @@ App.presets = (function () {
     ['Cozinha', 'Micro-ondas', 0.50, 0.40],
     ['Cozinha', 'Máquina de lavar', 0.60, 0.65],
     ['Cozinha', 'Mesa pequena', 0.80, 0.80],
+    ['Cozinha', 'Mesa redonda', 0.90, 0.90, 'circle'],
     // Banheiro
     ['Banheiro', 'Vaso sanitário', 0.38, 0.68],
     ['Banheiro', 'Pia / gabinete', 0.60, 0.45],
@@ -518,7 +575,8 @@ App.presets = (function () {
     ['Geral', 'Espelho', 0.60, 0.10],
     ['Geral', 'Tapete', 2.00, 1.40],
     ['Geral', 'Caixa / volume', 0.50, 0.50],
-  ].map(([cat, nome, w, h]) => ({ cat, nome, w, h, cor: cores[cat] }));
+    ['Geral', 'Círculo / volume', 0.60, 0.60, 'circle'],
+  ].map(([cat, nome, w, h, forma]) => ({ cat, nome, w, h, forma: forma || 'rect', cor: cores[cat] }));
 
   const categorias = ['Todos'].concat([...new Set(itens.map((i) => i.cat))]);
 
@@ -556,7 +614,10 @@ App.Store = (function () {
     a.wall = a.wall == null ? 0.10 : +a.wall;
     a.color = a.color || '#7c8cff';
     a.items = Array.isArray(a.items) ? a.items : [];
-    a.items.forEach((i) => { i.id = i.id || uid(); });
+    a.items.forEach((i) => {
+      i.id = i.id || uid();
+      if (i.type === 'furniture' && i.shape !== 'circle') i.shape = 'rect';
+    });
     return a;
   }
 
@@ -826,7 +887,12 @@ App.render = (function () {
     ctx.save();
     ctx.translate(X(it.x), Y(it.y));
     ctx.rotate(G.d2r(it.rot || 0));
-    roundRect(ctx, -sw / 2, -sh / 2, sw, sh, Math.min(6, sw / 6, sh / 6));
+    if (it.shape === 'circle') {
+      ctx.beginPath();
+      ctx.ellipse(0, 0, Math.max(sw / 2, .5), Math.max(sh / 2, .5), 0, 0, Math.PI * 2);
+    } else {
+      roundRect(ctx, -sw / 2, -sh / 2, sw, sh, Math.min(6, sw / 6, sh / 6));
+    }
     ctx.fillStyle = it.color || '#e2e5ec';
     ctx.fill();
     ctx.strokeStyle = selected ? C.brand : 'rgba(40,46,66,.55)';
@@ -838,9 +904,14 @@ App.render = (function () {
     if (a > 90) a -= 180;
     ctx.rotate(G.d2r(a - (it.rot || 0)));
     const label = it.name || 'Móvel';
-    const dims = G.num(it.w) + ' × ' + G.num(it.h) + ' m';
-    const boxW = Math.abs(Math.cos(G.d2r(a))) > .7 ? sw : sh;
-    const boxH = Math.abs(Math.cos(G.d2r(a))) > .7 ? sh : sw;
+    const redondo = it.shape === 'circle';
+    const dims = redondo && Math.abs(it.w - it.h) < 1e-6
+      ? 'Ø ' + G.num(it.w) + ' m'
+      : G.num(it.w) + ' × ' + G.num(it.h) + ' m';
+    const horiz = Math.abs(Math.cos(G.d2r(a))) > .7;
+    let boxW = horiz ? sw : sh;
+    let boxH = horiz ? sh : sw;
+    if (redondo) { boxW *= 0.72; boxH *= 0.72; }
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(28,32,48,.85)';
     if (boxW > 46 && boxH > 26) {
@@ -1099,7 +1170,7 @@ App.Editor = (function () {
           G.distToSegment(wx, wy, it.x1, it.y1, it.x2, it.y2) <= tol) return it;
     }
     for (const it of ordered) {
-      if (it.type === 'furniture' && G.pointInRect(wx, wy, it, 0)) return it;
+      if (it.type === 'furniture' && G.pointInItem(wx, wy, it, 0)) return it;
     }
     for (const it of ordered) {
       if (it.type === 'opening') {
@@ -1159,6 +1230,7 @@ App.Editor = (function () {
     const c = centerOfView();
     const it = {
       id: S.uid(), type: 'furniture', name: p.nome,
+      shape: p.forma === 'circle' ? 'circle' : 'rect',
       w: Math.min(p.w, a.w), h: Math.min(p.h, a.h),
       x: G.clamp(c.x, p.w / 2, Math.max(p.w / 2, a.w - p.w / 2)),
       y: G.clamp(c.y, p.h / 2, Math.max(p.h / 2, a.h - p.h / 2)),
@@ -1639,7 +1711,9 @@ App.UI = (function () {
     const label = (i) => i.type === 'furniture' ? i.name
       : i.type === 'line' ? 'Linha'
       : (i.kind === 'porta' ? 'Porta' : 'Janela');
-    const size = (i) => i.type === 'furniture' ? `${G.num(i.w)}×${G.num(i.h)} m`
+    const size = (i) => i.type === 'furniture'
+      ? (i.shape === 'circle' && Math.abs(i.w - i.h) < 1e-6
+          ? `Ø ${G.num(i.w)} m` : `${G.num(i.w)}×${G.num(i.h)} m`)
       : i.type === 'line' ? G.m(Math.hypot(i.x2 - i.x1, i.y2 - i.y1))
       : G.m(i.width);
     const color = (i) => i.type === 'furniture' ? (i.color || '#e2e5ec')
@@ -1718,9 +1792,9 @@ App.UI = (function () {
     const itens = App.presets.itens.filter((i) => cat === 'Todos' || i.cat === cat);
     $('#catalog').innerHTML = itens.map((i) => `
       <button class="cat-item" data-idx="${App.presets.itens.indexOf(i)}">
-        <i style="background:${i.cor}"></i>
+        <i class="${i.forma === 'circle' ? 'round' : ''}" style="background:${i.cor}"></i>
         <b>${esc(i.nome)}</b>
-        <span>${G.num(i.w)} × ${G.num(i.h)} m</span>
+        <span>${i.forma === 'circle' ? 'Ø ' + G.num(i.w) + ' m' : G.num(i.w) + ' × ' + G.num(i.h) + ' m'}</span>
       </button>`).join('') || '<p class="muted small">Nada nesta categoria.</p>';
   }
 
@@ -1734,15 +1808,23 @@ App.UI = (function () {
 
   function propsHTML(it) {
     if (it.type === 'furniture') {
+      const redondo = it.shape === 'circle';
       return `
-      <div class="prop-head"><span class="badge">Móvel</span></div>
+      <div class="prop-head"><span class="badge">${redondo ? 'Círculo' : 'Móvel'}</span></div>
       <div class="field"><label for="pName">Nome</label><input id="pName" value="${esc(it.name || '')}"></div>
+      <div class="field"><label for="pShape">Formato</label>
+        <select id="pShape">
+          <option value="rect" ${redondo ? '' : 'selected'}>Retângulo</option>
+          <option value="circle" ${redondo ? 'selected' : ''}>Círculo / oval</option>
+        </select></div>
       <div class="row">${fieldNum('pW', 'Largura (m)', G.num(it.w))}${fieldNum('pH', 'Profundidade (m)', G.num(it.h))}</div>
+      ${redondo ? '<p class="muted small">Largura igual à profundidade = círculo perfeito; diferentes = oval.</p>' : ''}
       <div class="row">${fieldNum('pX', 'X do centro (m)', G.num(it.x))}${fieldNum('pY', 'Y do centro (m)', G.num(it.y))}</div>
       <div class="row">${fieldNum('pR', 'Rotação (°)', G.num(it.rot || 0, 0))}
         <div class="field"><label for="pColor">Cor</label><input id="pColor" type="color" value="${toHex(it.color)}"></div></div>
       <div class="prop-actions">
-        <button class="btn" data-act="rot90">Girar 90°</button>
+        ${redondo ? '<button class="btn" data-act="equal">Igualar medidas</button>'
+                  : '<button class="btn" data-act="rot90">Girar 90°</button>'}
         <button class="btn" data-act="dup">Duplicar</button>
         <button class="btn btn-danger" data-act="del">Excluir</button>
       </div>`;
@@ -1789,7 +1871,7 @@ App.UI = (function () {
       return;
     }
     empty.hidden = true; box.hidden = false;
-    const key = it.id + ':' + it.type + ':' + (it.kind || '');
+    const key = it.id + ':' + it.type + ':' + (it.kind || '') + ':' + (it.shape || '');
     if (key !== lastPropsKey) {
       lastPropsKey = key;
       box.innerHTML = propsHTML(it);
@@ -1843,6 +1925,11 @@ App.UI = (function () {
       const col = document.getElementById('pColor');
       col.addEventListener('input', () => S.update(() => { it.color = col.value; }));
       const fix = () => E.keepInside(it, S.activeArea());
+      const shp = document.getElementById('pShape');
+      shp.addEventListener('change', () => S.update(() => {
+        it.shape = shp.value === 'circle' ? 'circle' : 'rect';
+        fix();
+      }));
       onNum('pW', (v) => { it.w = G.clamp(v, 0.05, 50); fix(); });
       onNum('pH', (v) => { it.h = G.clamp(v, 0.05, 50); fix(); });
       onNum('pX', (v) => { it.x = v; fix(); });
@@ -1889,8 +1976,55 @@ App.UI = (function () {
         E.keepInside(it, S.activeArea());
       });
       if (act === 'flip') S.update(() => { it.flip = !it.flip; });
+      if (act === 'equal') S.update(() => { it.h = it.w; it.rot = 0; E.keepInside(it, S.activeArea()); });
       E.draw();
     });
+  }
+
+  /* ---------- formas com medida informada ---------- */
+  const rotulos = {
+    rect:   { titulo: 'Móvel com medida própria', medida: 'Largura (m)', nome: 'Ex.: Guarda-roupa',
+              ph: '1,50', ajuda: 'Medidas internas do móvel, em metros — pode usar vírgula.' },
+    square: { titulo: 'Quadrado com a sua medida', medida: 'Lado (m)', nome: 'Ex.: Puff',
+              ph: '0,60', ajuda: 'O lado vale para os dois sentidos.' },
+    circle: { titulo: 'Círculo com a sua medida', medida: 'Diâmetro (m)', nome: 'Ex.: Mesa redonda',
+              ph: '1,00', ajuda: 'O círculo entra na mesma escala do cômodo.' },
+  };
+
+  function applyShapeFields() {
+    const v = $('#iShape').value;
+    const r = rotulos[v] || rotulos.rect;
+    $('#itemDlgTitle').textContent = r.titulo;
+    $('#iWLabel').textContent = r.medida;
+    $('#iW').placeholder = r.ph;
+    $('#iName').placeholder = r.nome;
+    $('#iHelp').textContent = r.ajuda;
+    $('#iHField').hidden = v !== 'rect';
+  }
+
+  function shapeDialog(shape) {
+    const dlg = $('#itemDlg');
+    $('#iShape').value = shape || 'rect';
+    $('#iName').value = ''; $('#iW').value = ''; $('#iH').value = '';
+    applyShapeFields();
+    dlg.returnValue = '';
+    dlg.showModal();
+    dlg.addEventListener('close', () => {
+      if (dlg.returnValue !== 'ok') return;
+      const v = $('#iShape').value;
+      const w = G.parseNum($('#iW').value);
+      const h = v === 'rect' ? G.parseNum($('#iH').value) : w;
+      if (!(w > 0) || !(h > 0)) { toast('Informe a medida em metros'); return; }
+      const padrao = v === 'circle' ? 'Círculo' : v === 'square' ? 'Quadrado' : 'Móvel';
+      E.addFurniture({
+        nome: $('#iName').value.trim() || padrao,
+        w, h,
+        forma: v === 'circle' ? 'circle' : 'rect',
+        cor: '#e2e5ec',
+      });
+      if (isMobile()) openPanel(false);
+      setTab('props');
+    }, { once: true });
   }
 
   /* ---------- render geral ---------- */
@@ -1985,20 +2119,11 @@ App.UI = (function () {
       setTab('props');
     });
 
-    $('#btnCustomItem').addEventListener('click', () => {
-      const dlg = $('#itemDlg');
-      $('#iName').value = ''; $('#iW').value = ''; $('#iH').value = '';
-      dlg.returnValue = '';
-      dlg.showModal();
-      dlg.addEventListener('close', () => {
-        if (dlg.returnValue !== 'ok') return;
-        const w = G.parseNum($('#iW').value), h = G.parseNum($('#iH').value);
-        if (!(w > 0) || !(h > 0)) { toast('Medidas inválidas'); return; }
-        E.addFurniture({ nome: $('#iName').value.trim() || 'Móvel', w, h, cor: '#e2e5ec' });
-        if (isMobile()) openPanel(false);
-        setTab('props');
-      }, { once: true });
+    $('#shapeAdd').addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-shape]');
+      if (b) shapeDialog(b.dataset.shape);
     });
+    $('#iShape').addEventListener('change', applyShapeFields);
 
     $$('.tool').forEach((b) => b.addEventListener('click', () => {
       E.setTool(b.dataset.tool);

@@ -33,6 +33,22 @@ App.geo = (function () {
            Math.abs(p.y - item.y) <= item.h / 2 + pad;
   }
 
+  function pointInEllipse(x, y, item, pad) {
+    pad = pad || 0;
+    const p = toLocal(x, y, item);
+    const rx = item.w / 2 + pad, ry = item.h / 2 + pad;
+    if (rx <= 0 || ry <= 0) return false;
+    const dx = (p.x - item.x) / rx, dy = (p.y - item.y) / ry;
+    return dx * dx + dy * dy <= 1;
+  }
+
+  /* Ponto dentro do item, respeitando o formato (retângulo ou círculo/oval). */
+  function pointInItem(x, y, item, pad) {
+    return item.shape === 'circle'
+      ? pointInEllipse(x, y, item, pad)
+      : pointInRect(x, y, item, pad);
+  }
+
   function distToSegment(px, py, x1, y1, x2, y2) {
     const dx = x2 - x1, dy = y2 - y1;
     const len2 = dx * dx + dy * dy;
@@ -49,6 +65,13 @@ App.geo = (function () {
         x1: Math.min(item.x1, item.x2), y1: Math.min(item.y1, item.y2),
         x2: Math.max(item.x1, item.x2), y2: Math.max(item.y1, item.y2),
       };
+    }
+    if (item.shape === 'circle') {
+      // bbox exata de uma elipse girada
+      const a = d2r(item.rot || 0), rx = item.w / 2, ry = item.h / 2;
+      const hx = Math.hypot(rx * Math.cos(a), ry * Math.sin(a));
+      const hy = Math.hypot(rx * Math.sin(a), ry * Math.cos(a));
+      return { x1: item.x - hx, y1: item.y - hy, x2: item.x + hx, y2: item.y + hy };
     }
     const cs = corners(item);
     return {
@@ -72,5 +95,9 @@ App.geo = (function () {
     return Number.isFinite(v) ? v : NaN;
   }
 
-  return { clamp, snap, d2r, r2d, rot, toLocal, corners, pointInRect, distToSegment, bbox, num, m, m2, parseNum };
+  return {
+    clamp, snap, d2r, r2d, rot, toLocal, corners,
+    pointInRect, pointInEllipse, pointInItem, distToSegment, bbox,
+    num, m, m2, parseNum,
+  };
 })();

@@ -97,7 +97,7 @@ App.Editor = (function () {
           G.distToSegment(wx, wy, it.x1, it.y1, it.x2, it.y2) <= tol) return it;
     }
     for (const it of ordered) {
-      if (it.type === 'furniture' && G.pointInRect(wx, wy, it, 0)) return it;
+      if (it.type === 'furniture' && G.pointInItem(wx, wy, it, 0)) return it;
     }
     for (const it of ordered) {
       if (it.type === 'opening') {
@@ -157,6 +157,7 @@ App.Editor = (function () {
     const c = centerOfView();
     const it = {
       id: S.uid(), type: 'furniture', name: p.nome,
+      shape: p.forma === 'circle' ? 'circle' : 'rect',
       w: Math.min(p.w, a.w), h: Math.min(p.h, a.h),
       x: G.clamp(c.x, p.w / 2, Math.max(p.w / 2, a.w - p.w / 2)),
       y: G.clamp(c.y, p.h / 2, Math.max(p.h / 2, a.h - p.h / 2)),

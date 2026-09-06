@@ -52,7 +52,12 @@
         <select id="catFilter"></select>
       </div>
       <div class="catalog" id="catalog"></div>
-      <button class="btn block" id="btnCustomItem">+ Móvel com medida própria</button>
+      <p class="muted small" style="margin:0 0 6px">Forma com a sua medida</p>
+      <div class="shape-add" id="shapeAdd">
+        <button class="btn" data-shape="rect"><span class="sh sh-rect"></span>Retângulo</button>
+        <button class="btn" data-shape="square"><span class="sh sh-square"></span>Quadrado</button>
+        <button class="btn" data-shape="circle"><span class="sh sh-circle"></span>Círculo</button>
+      </div>
       <p class="muted small">O móvel entra no centro da tela com as medidas reais. Arraste para posicionar, use a alça do canto para redimensionar e a alça de cima para girar.</p>
     </div>
 
@@ -132,21 +137,30 @@
 
 <dialog class="dlg" id="itemDlg">
   <form method="dialog" id="itemForm">
-    <h2>Móvel com medida própria</h2>
+    <h2 id="itemDlgTitle">Móvel com medida própria</h2>
+    <div class="field">
+      <label for="iShape">Formato</label>
+      <select id="iShape">
+        <option value="rect">Retângulo</option>
+        <option value="square">Quadrado</option>
+        <option value="circle">Círculo</option>
+      </select>
+    </div>
     <div class="field">
       <label for="iName">Nome</label>
-      <input id="iName" required placeholder="Ex.: Guarda-roupa" autocomplete="off">
+      <input id="iName" placeholder="Ex.: Guarda-roupa" autocomplete="off">
     </div>
     <div class="row">
       <div class="field">
-        <label for="iW">Largura (m)</label>
+        <label for="iW" id="iWLabel">Largura (m)</label>
         <input id="iW" inputmode="decimal" required placeholder="1,50">
       </div>
-      <div class="field">
+      <div class="field" id="iHField">
         <label for="iH">Profundidade (m)</label>
-        <input id="iH" inputmode="decimal" required placeholder="0,60">
+        <input id="iH" inputmode="decimal" placeholder="0,60">
       </div>
     </div>
+    <p class="muted small" id="iHelp">Medidas em metros — pode usar vírgula.</p>
     <div class="dlg-actions">
       <button class="btn" value="cancel" formnovalidate>Cancelar</button>
       <button class="btn btn-primary" value="ok">Adicionar</button>

@@ -97,7 +97,9 @@ App.UI = (function () {
     const label = (i) => i.type === 'furniture' ? i.name
       : i.type === 'line' ? 'Linha'
       : (i.kind === 'porta' ? 'Porta' : 'Janela');
-    const size = (i) => i.type === 'furniture' ? `${G.num(i.w)}×${G.num(i.h)} m`
+    const size = (i) => i.type === 'furniture'
+      ? (i.shape === 'circle' && Math.abs(i.w - i.h) < 1e-6
+          ? `Ø ${G.num(i.w)} m` : `${G.num(i.w)}×${G.num(i.h)} m`)
       : i.type === 'line' ? G.m(Math.hypot(i.x2 - i.x1, i.y2 - i.y1))
       : G.m(i.width);
     const color = (i) => i.type === 'furniture' ? (i.color || '#e2e5ec')
@@ -176,9 +178,9 @@ App.UI = (function () {
     const itens = App.presets.itens.filter((i) => cat === 'Todos' || i.cat === cat);
     $('#catalog').innerHTML = itens.map((i) => `
       <button class="cat-item" data-idx="${App.presets.itens.indexOf(i)}">
-        <i style="background:${i.cor}"></i>
+        <i class="${i.forma === 'circle' ? 'round' : ''}" style="background:${i.cor}"></i>
         <b>${esc(i.nome)}</b>
-        <span>${G.num(i.w)} × ${G.num(i.h)} m</span>
+        <span>${i.forma === 'circle' ? 'Ø ' + G.num(i.w) + ' m' : G.num(i.w) + ' × ' + G.num(i.h) + ' m'}</span>
       </button>`).join('') || '<p class="muted small">Nada nesta categoria.</p>';
   }
 
@@ -192,15 +194,23 @@ App.UI = (function () {
 
   function propsHTML(it) {
     if (it.type === 'furniture') {
+      const redondo = it.shape === 'circle';
       return `
-      <div class="prop-head"><span class="badge">Móvel</span></div>
+      <div class="prop-head"><span class="badge">${redondo ? 'Círculo' : 'Móvel'}</span></div>
       <div class="field"><label for="pName">Nome</label><input id="pName" value="${esc(it.name || '')}"></div>
+      <div class="field"><label for="pShape">Formato</label>
+        <select id="pShape">
+          <option value="rect" ${redondo ? '' : 'selected'}>Retângulo</option>
+          <option value="circle" ${redondo ? 'selected' : ''}>Círculo / oval</option>
+        </select></div>
       <div class="row">${fieldNum('pW', 'Largura (m)', G.num(it.w))}${fieldNum('pH', 'Profundidade (m)', G.num(it.h))}</div>
+      ${redondo ? '<p class="muted small">Largura igual à profundidade = círculo perfeito; diferentes = oval.</p>' : ''}
       <div class="row">${fieldNum('pX', 'X do centro (m)', G.num(it.x))}${fieldNum('pY', 'Y do centro (m)', G.num(it.y))}</div>
       <div class="row">${fieldNum('pR', 'Rotação (°)', G.num(it.rot || 0, 0))}
         <div class="field"><label for="pColor">Cor</label><input id="pColor" type="color" value="${toHex(it.color)}"></div></div>
       <div class="prop-actions">
-        <button class="btn" data-act="rot90">Girar 90°</button>
+        ${redondo ? '<button class="btn" data-act="equal">Igualar medidas</button>'
+                  : '<button class="btn" data-act="rot90">Girar 90°</button>'}
         <button class="btn" data-act="dup">Duplicar</button>
         <button class="btn btn-danger" data-act="del">Excluir</button>
       </div>`;
@@ -247,7 +257,7 @@ App.UI = (function () {
       return;
     }
     empty.hidden = true; box.hidden = false;
-    const key = it.id + ':' + it.type + ':' + (it.kind || '');
+    const key = it.id + ':' + it.type + ':' + (it.kind || '') + ':' + (it.shape || '');
     if (key !== lastPropsKey) {
       lastPropsKey = key;
       box.innerHTML = propsHTML(it);
@@ -301,6 +311,11 @@ App.UI = (function () {
       const col = document.getElementById('pColor');
       col.addEventListener('input', () => S.update(() => { it.color = col.value; }));
       const fix = () => E.keepInside(it, S.activeArea());
+      const shp = document.getElementById('pShape');
+      shp.addEventListener('change', () => S.update(() => {
+        it.shape = shp.value === 'circle' ? 'circle' : 'rect';
+        fix();
+      }));
       onNum('pW', (v) => { it.w = G.clamp(v, 0.05, 50); fix(); });
       onNum('pH', (v) => { it.h = G.clamp(v, 0.05, 50); fix(); });
       onNum('pX', (v) => { it.x = v; fix(); });
@@ -347,8 +362,55 @@ App.UI = (function () {
         E.keepInside(it, S.activeArea());
       });
       if (act === 'flip') S.update(() => { it.flip = !it.flip; });
+      if (act === 'equal') S.update(() => { it.h = it.w; it.rot = 0; E.keepInside(it, S.activeArea()); });
       E.draw();
     });
+  }
+
+  /* ---------- formas com medida informada ---------- */
+  const rotulos = {
+    rect:   { titulo: 'Móvel com medida própria', medida: 'Largura (m)', nome: 'Ex.: Guarda-roupa',
+              ph: '1,50', ajuda: 'Medidas internas do móvel, em metros — pode usar vírgula.' },
+    square: { titulo: 'Quadrado com a sua medida', medida: 'Lado (m)', nome: 'Ex.: Puff',
+              ph: '0,60', ajuda: 'O lado vale para os dois sentidos.' },
+    circle: { titulo: 'Círculo com a sua medida', medida: 'Diâmetro (m)', nome: 'Ex.: Mesa redonda',
+              ph: '1,00', ajuda: 'O círculo entra na mesma escala do cômodo.' },
+  };
+
+  function applyShapeFields() {
+    const v = $('#iShape').value;
+    const r = rotulos[v] || rotulos.rect;
+    $('#itemDlgTitle').textContent = r.titulo;
+    $('#iWLabel').textContent = r.medida;
+    $('#iW').placeholder = r.ph;
+    $('#iName').placeholder = r.nome;
+    $('#iHelp').textContent = r.ajuda;
+    $('#iHField').hidden = v !== 'rect';
+  }
+
+  function shapeDialog(shape) {
+    const dlg = $('#itemDlg');
+    $('#iShape').value = shape || 'rect';
+    $('#iName').value = ''; $('#iW').value = ''; $('#iH').value = '';
+    applyShapeFields();
+    dlg.returnValue = '';
+    dlg.showModal();
+    dlg.addEventListener('close', () => {
+      if (dlg.returnValue !== 'ok') return;
+      const v = $('#iShape').value;
+      const w = G.parseNum($('#iW').value);
+      const h = v === 'rect' ? G.parseNum($('#iH').value) : w;
+      if (!(w > 0) || !(h > 0)) { toast('Informe a medida em metros'); return; }
+      const padrao = v === 'circle' ? 'Círculo' : v === 'square' ? 'Quadrado' : 'Móvel';
+      E.addFurniture({
+        nome: $('#iName').value.trim() || padrao,
+        w, h,
+        forma: v === 'circle' ? 'circle' : 'rect',
+        cor: '#e2e5ec',
+      });
+      if (isMobile()) openPanel(false);
+      setTab('props');
+    }, { once: true });
   }
 
   /* ---------- render geral ---------- */
@@ -443,20 +505,11 @@ App.UI = (function () {
       setTab('props');
     });
 
-    $('#btnCustomItem').addEventListener('click', () => {
-      const dlg = $('#itemDlg');
-      $('#iName').value = ''; $('#iW').value = ''; $('#iH').value = '';
-      dlg.returnValue = '';
-      dlg.showModal();
-      dlg.addEventListener('close', () => {
-        if (dlg.returnValue !== 'ok') return;
-        const w = G.parseNum($('#iW').value), h = G.parseNum($('#iH').value);
-        if (!(w > 0) || !(h > 0)) { toast('Medidas inválidas'); return; }
-        E.addFurniture({ nome: $('#iName').value.trim() || 'Móvel', w, h, cor: '#e2e5ec' });
-        if (isMobile()) openPanel(false);
-        setTab('props');
-      }, { once: true });
+    $('#shapeAdd').addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-shape]');
+      if (b) shapeDialog(b.dataset.shape);
     });
+    $('#iShape').addEventListener('change', applyShapeFields);
 
     $$('.tool').forEach((b) => b.addEventListener('click', () => {
       E.setTool(b.dataset.tool);

@@ -28,7 +28,10 @@ App.Store = (function () {
     a.wall = a.wall == null ? 0.10 : +a.wall;
     a.color = a.color || '#7c8cff';
     a.items = Array.isArray(a.items) ? a.items : [];
-    a.items.forEach((i) => { i.id = i.id || uid(); });
+    a.items.forEach((i) => {
+      i.id = i.id || uid();
+      if (i.type === 'furniture' && i.shape !== 'circle') i.shape = 'rect';
+    });
     return a;
   }
 

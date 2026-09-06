@@ -15,10 +15,15 @@ e sem servidor.
   (medidas internas) e a espessura da parede. O site mostra a área em m² de cada ambiente
   e o total do apartamento.
 - **Móveis em escala**: catálogo com medidas reais de mercado (cama casal 1,38 × 1,88,
-  guarda-roupa 3 portas 1,50 × 0,60, geladeira, sofá, fogão…) ou móvel com medida própria.
+  guarda-roupa 3 portas 1,50 × 0,60, geladeira, sofá, mesa redonda…).
   Arraste para posicionar, use a alça do canto para redimensionar e a alça de cima para
   girar. O móvel encosta sozinho na parede quando chega perto e a posição fica presa numa
   malha de 5 cm.
+- **Formas com a sua medida**: em *Adicionar* dá para inserir um **retângulo** (largura ×
+  profundidade), um **quadrado** (um lado só) ou um **círculo** (diâmetro) para simular um
+  móvel que não está no catálogo. No painel *Item* o formato pode ser trocado a qualquer
+  momento; num círculo, largura diferente da profundidade vira oval, e o botão *Igualar
+  medidas* volta ao círculo perfeito.
 - **Linhas**: desenhe linhas dentro do cômodo para dividir ambientes ou medir um vão antes
   de comprar o móvel. A linha mostra o comprimento real em metros, sempre relativo ao
   tamanho definido para o cômodo.

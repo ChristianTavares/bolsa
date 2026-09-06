@@ -163,7 +163,12 @@ App.render = (function () {
     ctx.save();
     ctx.translate(X(it.x), Y(it.y));
     ctx.rotate(G.d2r(it.rot || 0));
-    roundRect(ctx, -sw / 2, -sh / 2, sw, sh, Math.min(6, sw / 6, sh / 6));
+    if (it.shape === 'circle') {
+      ctx.beginPath();
+      ctx.ellipse(0, 0, Math.max(sw / 2, .5), Math.max(sh / 2, .5), 0, 0, Math.PI * 2);
+    } else {
+      roundRect(ctx, -sw / 2, -sh / 2, sw, sh, Math.min(6, sw / 6, sh / 6));
+    }
     ctx.fillStyle = it.color || '#e2e5ec';
     ctx.fill();
     ctx.strokeStyle = selected ? C.brand : 'rgba(40,46,66,.55)';
@@ -175,9 +180,14 @@ App.render = (function () {
     if (a > 90) a -= 180;
     ctx.rotate(G.d2r(a - (it.rot || 0)));
     const label = it.name || 'Móvel';
-    const dims = G.num(it.w) + ' × ' + G.num(it.h) + ' m';
-    const boxW = Math.abs(Math.cos(G.d2r(a))) > .7 ? sw : sh;
-    const boxH = Math.abs(Math.cos(G.d2r(a))) > .7 ? sh : sw;
+    const redondo = it.shape === 'circle';
+    const dims = redondo && Math.abs(it.w - it.h) < 1e-6
+      ? 'Ø ' + G.num(it.w) + ' m'
+      : G.num(it.w) + ' × ' + G.num(it.h) + ' m';
+    const horiz = Math.abs(Math.cos(G.d2r(a))) > .7;
+    let boxW = horiz ? sw : sh;
+    let boxH = horiz ? sh : sw;
+    if (redondo) { boxW *= 0.72; boxH *= 0.72; }
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(28,32,48,.85)';
     if (boxW > 46 && boxH > 26) {

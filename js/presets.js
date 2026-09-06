@@ -35,6 +35,11 @@ App.presets = (function () {
     ['Sala', 'Estante', 0.80, 0.35],
     ['Sala', 'Mesa jantar 4 lug.', 1.20, 0.80],
     ['Sala', 'Mesa jantar 6 lug.', 1.60, 0.90],
+    ['Sala', 'Mesa redonda 4 lug.', 1.00, 1.00, 'circle'],
+    ['Sala', 'Mesa redonda 6 lug.', 1.20, 1.20, 'circle'],
+    ['Sala', 'Mesa lateral redonda', 0.45, 0.45, 'circle'],
+    ['Sala', 'Puff', 0.55, 0.55, 'circle'],
+    ['Sala', 'Tapete redondo', 1.50, 1.50, 'circle'],
     ['Sala', 'Cadeira', 0.45, 0.45],
     // Cozinha
     ['Cozinha', 'Geladeira', 0.70, 0.70],
@@ -45,6 +50,7 @@ App.presets = (function () {
     ['Cozinha', 'Micro-ondas', 0.50, 0.40],
     ['Cozinha', 'Máquina de lavar', 0.60, 0.65],
     ['Cozinha', 'Mesa pequena', 0.80, 0.80],
+    ['Cozinha', 'Mesa redonda', 0.90, 0.90, 'circle'],
     // Banheiro
     ['Banheiro', 'Vaso sanitário', 0.38, 0.68],
     ['Banheiro', 'Pia / gabinete', 0.60, 0.45],
@@ -61,7 +67,8 @@ App.presets = (function () {
     ['Geral', 'Espelho', 0.60, 0.10],
     ['Geral', 'Tapete', 2.00, 1.40],
     ['Geral', 'Caixa / volume', 0.50, 0.50],
-  ].map(([cat, nome, w, h]) => ({ cat, nome, w, h, cor: cores[cat] }));
+    ['Geral', 'Círculo / volume', 0.60, 0.60, 'circle'],
+  ].map(([cat, nome, w, h, forma]) => ({ cat, nome, w, h, forma: forma || 'rect', cor: cores[cat] }));
 
   const categorias = ['Todos'].concat([...new Set(itens.map((i) => i.cat))]);
 
