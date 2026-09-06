@@ -30,7 +30,16 @@ App.Store = (function () {
     a.items = Array.isArray(a.items) ? a.items : [];
     a.items.forEach((i) => {
       i.id = i.id || uid();
-      if (i.type === 'furniture' && i.shape !== 'circle') i.shape = 'rect';
+      if (i.type === 'furniture') {
+        if (i.shape !== 'circle') i.shape = 'rect';
+        if (i.alt && (+i.alt.w > 0) && (+i.alt.h > 0)) {
+          i.alt = { w: +i.alt.w, h: +i.alt.h };
+          i.open = !!i.open;
+        } else {
+          delete i.alt;
+          delete i.open;
+        }
+      }
     });
     return a;
   }

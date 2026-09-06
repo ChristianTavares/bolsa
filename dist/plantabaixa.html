@@ -147,6 +147,10 @@ hr{border:0;border-top:1px solid var(--line);margin:6px 0}
 .cat-item b{display:block;font-size:13px;font-weight:600}
 .cat-item span{font-size:11.5px;color:var(--ink-2)}
 .cat-item i{display:block;height:4px;border-radius:2px;margin-bottom:6px;background:var(--brand)}
+.cat-item .tag{
+  font-style:normal;font-weight:600;font-size:10px;letter-spacing:.3px;
+  background:var(--brand-soft);color:var(--brand);padding:1px 5px;border-radius:999px;
+}
 
 .shape-add{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
 .shape-add .btn{
@@ -536,13 +540,17 @@ App.presets = (function () {
     // Sala
     ['Sala', 'Sofá 2 lugares', 1.60, 0.85],
     ['Sala', 'Sofá 3 lugares', 2.00, 0.90],
-    ['Sala', 'Sofá retrátil', 2.20, 1.10],
+    ['Sala', 'Sofá retrátil', 2.20, 1.10, 'rect', [2.20, 1.60]],
+    ['Sala', 'Sofá-cama 2 lug.', 1.80, 0.90, 'rect', [1.80, 1.90]],
+    ['Sala', 'Sofá-cama 3 lug.', 2.10, 0.95, 'rect', [2.10, 2.00]],
+    ['Sala', 'Poltrona-cama', 0.90, 0.90, 'rect', [0.90, 1.90]],
     ['Sala', 'Poltrona', 0.80, 0.80],
     ['Sala', 'Rack de TV', 1.80, 0.40],
     ['Sala', 'Mesa de centro', 1.00, 0.60],
     ['Sala', 'Estante', 0.80, 0.35],
     ['Sala', 'Mesa jantar 4 lug.', 1.20, 0.80],
     ['Sala', 'Mesa jantar 6 lug.', 1.60, 0.90],
+    ['Sala', 'Mesa extensível', 1.20, 0.80, 'rect', [1.80, 0.80]],
     ['Sala', 'Mesa redonda 4 lug.', 1.00, 1.00, 'circle'],
     ['Sala', 'Mesa redonda 6 lug.', 1.20, 1.20, 'circle'],
     ['Sala', 'Mesa lateral redonda', 0.45, 0.45, 'circle'],
@@ -576,7 +584,12 @@ App.presets = (function () {
     ['Geral', 'Tapete', 2.00, 1.40],
     ['Geral', 'Caixa / volume', 0.50, 0.50],
     ['Geral', 'Círculo / volume', 0.60, 0.60, 'circle'],
-  ].map(([cat, nome, w, h, forma]) => ({ cat, nome, w, h, forma: forma || 'rect', cor: cores[cat] }));
+  ].map(([cat, nome, w, h, forma, alt]) => ({
+    cat, nome, w, h,
+    forma: forma || 'rect',
+    alt: alt ? { w: alt[0], h: alt[1] } : null,
+    cor: cores[cat],
+  }));
 
   const categorias = ['Todos'].concat([...new Set(itens.map((i) => i.cat))]);
 
@@ -616,7 +629,16 @@ App.Store = (function () {
     a.items = Array.isArray(a.items) ? a.items : [];
     a.items.forEach((i) => {
       i.id = i.id || uid();
-      if (i.type === 'furniture' && i.shape !== 'circle') i.shape = 'rect';
+      if (i.type === 'furniture') {
+        if (i.shape !== 'circle') i.shape = 'rect';
+        if (i.alt && (+i.alt.w > 0) && (+i.alt.h > 0)) {
+          i.alt = { w: +i.alt.w, h: +i.alt.h };
+          i.open = !!i.open;
+        } else {
+          delete i.alt;
+          delete i.open;
+        }
+      }
     });
     return a;
   }
@@ -899,19 +921,49 @@ App.render = (function () {
     ctx.lineWidth = selected ? 2 : 1.2;
     ctx.stroke();
 
+    // móvel de dois tamanhos: contorno do outro tamanho + linha da dobra
+    if (it.alt) {
+      const aw = it.alt.w * v.scale, ah = it.alt.h * v.scale;
+      ctx.save();
+      ctx.setLineDash([6, 4]);
+      if (selected) {
+        ctx.strokeStyle = 'rgba(76,91,212,.8)';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(-aw / 2, -sh / 2, aw, ah);
+      }
+      if (it.open && it.alt.h < it.h) {
+        ctx.strokeStyle = 'rgba(40,46,66,.4)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(-sw / 2, -sh / 2 + ah);
+        ctx.lineTo(sw / 2, -sh / 2 + ah);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // com a peça aberta, o rótulo vai para a parte que esticou
+    const dobrado = it.alt && it.open && it.alt.h < it.h;
+    if (dobrado) ctx.translate(0, (it.alt.h / 2) * v.scale);
+
     // rótulo (mantido legível: nunca de cabeça para baixo)
     let a = ((it.rot || 0) % 180 + 180) % 180;
     if (a > 90) a -= 180;
     ctx.rotate(G.d2r(a - (it.rot || 0)));
     const label = it.name || 'Móvel';
     const redondo = it.shape === 'circle';
-    const dims = redondo && Math.abs(it.w - it.h) < 1e-6
+    let dims = redondo && Math.abs(it.w - it.h) < 1e-6
       ? 'Ø ' + G.num(it.w) + ' m'
       : G.num(it.w) + ' × ' + G.num(it.h) + ' m';
+    if (it.alt) dims += it.open ? ' · aberto' : ' · fechado';
     const horiz = Math.abs(Math.cos(G.d2r(a))) > .7;
     let boxW = horiz ? sw : sh;
     let boxH = horiz ? sh : sw;
     if (redondo) { boxW *= 0.72; boxH *= 0.72; }
+    if (dobrado) {
+      const faixa = (it.h - it.alt.h) * v.scale;
+      if (horiz) boxH = Math.min(boxH, faixa); else boxW = Math.min(boxW, faixa);
+    }
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(28,32,48,.85)';
     if (boxW > 46 && boxH > 26) {
@@ -924,6 +976,16 @@ App.render = (function () {
       }
     }
     ctx.restore();
+
+    if (selected && it.alt) {
+      // etiqueta do outro tamanho, sempre logo à frente da peça
+      const d = Math.max(it.h, it.alt.h);
+      const borda = G.rot(it.x, it.y - it.h / 2 + d, it.x, it.y, it.rot || 0);
+      const frente = G.rot(0, 1, 0, 0, it.rot || 0);
+      pill(ctx,
+        (it.open ? 'fechado: ' : 'aberto: ') + G.num(it.alt.w) + ' × ' + G.num(it.alt.h) + ' m',
+        X(borda.x) + frente.x * 14, Y(borda.y) + frente.y * 14, C.brand);
+    }
   }
 
   function drawLine(ctx, it, v, X, Y, selected) {
@@ -1236,9 +1298,15 @@ App.Editor = (function () {
       y: G.clamp(c.y, p.h / 2, Math.max(p.h / 2, a.h - p.h / 2)),
       rot: 0, color: p.cor || '#e2e5ec',
     };
+    if (p.alt && p.alt.w > 0 && p.alt.h > 0) {
+      it.alt = { w: p.alt.w, h: p.alt.h };
+      it.open = false;
+    }
     S.update(() => { a.items.push(it); });
     select(it.id);
-    onHint(p.nome + ' adicionado — arraste para posicionar');
+    onHint(it.alt
+      ? p.nome + ' adicionado — toque nele de novo para abrir'
+      : p.nome + ' adicionado — arraste para posicionar');
   }
 
   function addOpening(kind, wall, posCenter) {
@@ -1254,6 +1322,34 @@ App.Editor = (function () {
     S.update(() => { a.items.push(it); });
     select(it.id);
     return it;
+  }
+
+  /* Abre/fecha um móvel de dois tamanhos (sofá-cama, mesa extensível…).
+     O encosto fica parado: a peça cresce para a frente. */
+  function toggleOpen(id) {
+    const a = area();
+    const it = id ? a.items.find((i) => i.id === id) : getSelected();
+    if (!it || it.type !== 'furniture' || !it.alt) return false;
+    let falta = 0;
+    S.update(() => {
+      const atual = { w: it.w, h: it.h };
+      const outro = { w: it.alt.w, h: it.alt.h };
+      const frente = G.rot(0, 1, 0, 0, it.rot || 0);
+      it.x += frente.x * (outro.h - atual.h) / 2;
+      it.y += frente.y * (outro.h - atual.h) / 2;
+      it.w = outro.w; it.h = outro.h;
+      it.alt = atual;
+      it.open = !it.open;
+      const b = G.bbox(it);
+      falta = Math.max(0, (b.x2 - b.x1) - a.w, (b.y2 - b.y1) - a.h);
+      keepInside(it, a);
+    });
+    let msg = (it.name || 'Móvel') + (it.open ? ' aberto: ' : ' fechado: ')
+      + G.num(it.w) + ' × ' + G.num(it.h) + ' m';
+    if (falta > 0.005) msg += ' — não cabe, faltam ' + Math.round(falta * 100) + ' cm';
+    onHint(msg);
+    draw();
+    return true;
   }
 
   function removeSelected() {
@@ -1332,10 +1428,12 @@ App.Editor = (function () {
 
     const it = hitItem(w.x, w.y);
     if (it) {
+      const jaEstava = selectedId === it.id;
       select(it.id);
       S.begin();
       gesture = {
         type: 'item', id: it.id, tx: true, start: p, moved: false,
+        wasSelected: jaEstava,
         grab: { x: w.x, y: w.y },
         orig: JSON.parse(JSON.stringify(it)),
       };
@@ -1369,8 +1467,9 @@ App.Editor = (function () {
 
     if (!gesture) return;
     const w = toWorld(p.x, p.y);
-    const moved = Math.hypot(p.x - gesture.start.x, p.y - gesture.start.y) > 5;
-    if (moved) gesture.moved = true;
+    const dist = Math.hypot(p.x - gesture.start.x, p.y - gesture.start.y);
+    gesture.maxMove = Math.max(gesture.maxMove || 0, dist);
+    if (dist > 5) gesture.moved = true;
 
     if (gesture.type === 'pan') {
       view.ox = gesture.origin.ox + (p.x - gesture.start.x);
@@ -1495,7 +1594,14 @@ App.Editor = (function () {
         draft = null;
         setTool('select');
       } else if (gesture.tx) {
+        // toque curto num item já selecionado = abrir/fechar (tolera o tremido do dedo)
+        const toque = gesture.type === 'item' && gesture.wasSelected && (gesture.maxMove || 0) <= 8;
+        if (toque) {
+          const it = getSelected(), o = gesture.orig;
+          if (it && it.type === 'furniture') S.live(() => { it.x = o.x; it.y = o.y; });
+        }
         S.commit();
+        if (toque) toggleOpen(gesture.id);
         onChange();
       } else if (gesture.type === 'pan' && !gesture.moved && gesture.hitEmpty) {
         select(null);
@@ -1602,7 +1708,7 @@ App.Editor = (function () {
   }
 
   return {
-    init, draw, fit, resize, setTool, select, getSelected, addFurniture, addOpening, keepInside,
+    init, draw, fit, resize, setTool, select, getSelected, addFurniture, addOpening, keepInside, toggleOpen,
     removeSelected, duplicateSelected, exportPNG, zoomAt,
     zoomIn: () => zoomAt(1.25, cssW / 2, cssH / 2),
     zoomOut: () => zoomAt(0.8, cssW / 2, cssH / 2),
@@ -1713,7 +1819,7 @@ App.UI = (function () {
       : (i.kind === 'porta' ? 'Porta' : 'Janela');
     const size = (i) => i.type === 'furniture'
       ? (i.shape === 'circle' && Math.abs(i.w - i.h) < 1e-6
-          ? `Ø ${G.num(i.w)} m` : `${G.num(i.w)}×${G.num(i.h)} m`)
+          ? `Ø ${G.num(i.w)} m` : `${G.num(i.w)}×${G.num(i.h)} m`) + (i.open ? ' · aberto' : '')
       : i.type === 'line' ? G.m(Math.hypot(i.x2 - i.x1, i.y2 - i.y1))
       : G.m(i.width);
     const color = (i) => i.type === 'furniture' ? (i.color || '#e2e5ec')
@@ -1793,8 +1899,9 @@ App.UI = (function () {
     $('#catalog').innerHTML = itens.map((i) => `
       <button class="cat-item" data-idx="${App.presets.itens.indexOf(i)}">
         <i class="${i.forma === 'circle' ? 'round' : ''}" style="background:${i.cor}"></i>
-        <b>${esc(i.nome)}</b>
-        <span>${i.forma === 'circle' ? 'Ø ' + G.num(i.w) + ' m' : G.num(i.w) + ' × ' + G.num(i.h) + ' m'}</span>
+        <b>${esc(i.nome)}${i.alt ? ' <em class="tag">abre</em>' : ''}</b>
+        <span>${i.forma === 'circle' ? 'Ø ' + G.num(i.w) + ' m' : G.num(i.w) + ' × ' + G.num(i.h) + ' m'}${
+          i.alt ? ' → ' + G.num(i.alt.w) + ' × ' + G.num(i.alt.h) + ' m' : ''}</span>
       </button>`).join('') || '<p class="muted small">Nada nesta categoria.</p>';
   }
 
@@ -1809,8 +1916,10 @@ App.UI = (function () {
   function propsHTML(it) {
     if (it.type === 'furniture') {
       const redondo = it.shape === 'circle';
+      const rot2 = (base) => it.open ? base + ' fechado (m)' : base + ' aberto (m)';
       return `
-      <div class="prop-head"><span class="badge">${redondo ? 'Círculo' : 'Móvel'}</span></div>
+      <div class="prop-head"><span class="badge">${redondo ? 'Círculo' : 'Móvel'}</span>${
+        it.alt ? `<span class="badge">${it.open ? 'aberto' : 'fechado'}</span>` : ''}</div>
       <div class="field"><label for="pName">Nome</label><input id="pName" value="${esc(it.name || '')}"></div>
       <div class="field"><label for="pShape">Formato</label>
         <select id="pShape">
@@ -1819,10 +1928,14 @@ App.UI = (function () {
         </select></div>
       <div class="row">${fieldNum('pW', 'Largura (m)', G.num(it.w))}${fieldNum('pH', 'Profundidade (m)', G.num(it.h))}</div>
       ${redondo ? '<p class="muted small">Largura igual à profundidade = círculo perfeito; diferentes = oval.</p>' : ''}
+      ${it.alt ? `<div class="row">${fieldNum('pAW', rot2('Largura'), G.num(it.alt.w))}${fieldNum('pAH', rot2('Profundidade'), G.num(it.alt.h))}</div>
+      <p class="muted small">Móvel de dois tamanhos: toque nele na planta (já selecionado) para abrir e fechar — o encosto fica parado e ele estica para a frente.</p>` : ''}
       <div class="row">${fieldNum('pX', 'X do centro (m)', G.num(it.x))}${fieldNum('pY', 'Y do centro (m)', G.num(it.y))}</div>
       <div class="row">${fieldNum('pR', 'Rotação (°)', G.num(it.rot || 0, 0))}
         <div class="field"><label for="pColor">Cor</label><input id="pColor" type="color" value="${toHex(it.color)}"></div></div>
       <div class="prop-actions">
+        ${it.alt ? `<button class="btn btn-primary" data-act="toggle">${it.open ? 'Fechar' : 'Abrir'}</button>`
+                 : '<button class="btn" data-act="addalt">Definir tamanho aberto</button>'}
         ${redondo ? '<button class="btn" data-act="equal">Igualar medidas</button>'
                   : '<button class="btn" data-act="rot90">Girar 90°</button>'}
         <button class="btn" data-act="dup">Duplicar</button>
@@ -1871,7 +1984,8 @@ App.UI = (function () {
       return;
     }
     empty.hidden = true; box.hidden = false;
-    const key = it.id + ':' + it.type + ':' + (it.kind || '') + ':' + (it.shape || '');
+    const key = it.id + ':' + it.type + ':' + (it.kind || '') + ':' + (it.shape || '')
+      + ':' + (it.alt ? 'alt' : '') + ':' + (it.open ? 'aberto' : '');
     if (key !== lastPropsKey) {
       lastPropsKey = key;
       box.innerHTML = propsHTML(it);
@@ -1892,6 +2006,7 @@ App.UI = (function () {
       setVal('pW', G.num(it.w)); setVal('pH', G.num(it.h));
       setVal('pX', G.num(it.x)); setVal('pY', G.num(it.y));
       setVal('pR', G.num(it.rot || 0, 0));
+      if (it.alt) { setVal('pAW', G.num(it.alt.w)); setVal('pAH', G.num(it.alt.h)); }
     } else if (it.type === 'line') {
       setVal('pLen', G.num(Math.hypot(it.x2 - it.x1, it.y2 - it.y1)));
       setVal('pAng', G.num(G.r2d(Math.atan2(it.y2 - it.y1, it.x2 - it.x1)), 0));
@@ -1904,7 +2019,6 @@ App.UI = (function () {
   }
 
   function wireProps(it) {
-    const box = $('#propsForm');
     const a = S.activeArea();
 
     const onNum = (id, apply) => {
@@ -1935,6 +2049,10 @@ App.UI = (function () {
       onNum('pX', (v) => { it.x = v; fix(); });
       onNum('pY', (v) => { it.y = v; fix(); });
       onNum('pR', (v) => { it.rot = ((v % 360) + 360) % 360; fix(); });
+      if (it.alt) {
+        onNum('pAW', (v) => { it.alt.w = G.clamp(v, 0.05, 50); });
+        onNum('pAH', (v) => { it.alt.h = G.clamp(v, 0.05, 50); });
+      }
     } else if (it.type === 'line') {
       onNum('pLen', (v) => {
         const ang = Math.atan2(it.y2 - it.y1, it.x2 - it.x1);
@@ -1965,9 +2083,15 @@ App.UI = (function () {
       });
     }
 
-    box.addEventListener('click', (ev) => {
+  }
+
+  /* Registrado uma única vez: o formulário é reconstruído, o elemento não. */
+  function bindPropsActions() {
+    $('#propsForm').addEventListener('click', (ev) => {
       const b = ev.target.closest('[data-act]');
       if (!b) return;
+      const it = E.getSelected();
+      if (!it) return;
       const act = b.dataset.act;
       if (act === 'del') E.removeSelected();
       if (act === 'dup') E.duplicateSelected();
@@ -1977,6 +2101,14 @@ App.UI = (function () {
       });
       if (act === 'flip') S.update(() => { it.flip = !it.flip; });
       if (act === 'equal') S.update(() => { it.h = it.w; it.rot = 0; E.keepInside(it, S.activeArea()); });
+      if (act === 'toggle') E.toggleOpen(it.id);
+      if (act === 'addalt') {
+        S.update(() => {
+          it.alt = { w: it.w, h: Math.round((it.h + 1) * 100) / 100 };
+          it.open = false;
+        });
+        toast('Ajuste o tamanho aberto e toque no móvel para abrir');
+      }
       E.draw();
     });
   }
@@ -2190,6 +2322,7 @@ App.UI = (function () {
 
   function init() {
     bind();
+    bindPropsActions();
     adaptMenu();
     renderCatalog();
     render();

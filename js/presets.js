@@ -28,13 +28,17 @@ App.presets = (function () {
     // Sala
     ['Sala', 'Sofá 2 lugares', 1.60, 0.85],
     ['Sala', 'Sofá 3 lugares', 2.00, 0.90],
-    ['Sala', 'Sofá retrátil', 2.20, 1.10],
+    ['Sala', 'Sofá retrátil', 2.20, 1.10, 'rect', [2.20, 1.60]],
+    ['Sala', 'Sofá-cama 2 lug.', 1.80, 0.90, 'rect', [1.80, 1.90]],
+    ['Sala', 'Sofá-cama 3 lug.', 2.10, 0.95, 'rect', [2.10, 2.00]],
+    ['Sala', 'Poltrona-cama', 0.90, 0.90, 'rect', [0.90, 1.90]],
     ['Sala', 'Poltrona', 0.80, 0.80],
     ['Sala', 'Rack de TV', 1.80, 0.40],
     ['Sala', 'Mesa de centro', 1.00, 0.60],
     ['Sala', 'Estante', 0.80, 0.35],
     ['Sala', 'Mesa jantar 4 lug.', 1.20, 0.80],
     ['Sala', 'Mesa jantar 6 lug.', 1.60, 0.90],
+    ['Sala', 'Mesa extensível', 1.20, 0.80, 'rect', [1.80, 0.80]],
     ['Sala', 'Mesa redonda 4 lug.', 1.00, 1.00, 'circle'],
     ['Sala', 'Mesa redonda 6 lug.', 1.20, 1.20, 'circle'],
     ['Sala', 'Mesa lateral redonda', 0.45, 0.45, 'circle'],
@@ -68,7 +72,12 @@ App.presets = (function () {
     ['Geral', 'Tapete', 2.00, 1.40],
     ['Geral', 'Caixa / volume', 0.50, 0.50],
     ['Geral', 'Círculo / volume', 0.60, 0.60, 'circle'],
-  ].map(([cat, nome, w, h, forma]) => ({ cat, nome, w, h, forma: forma || 'rect', cor: cores[cat] }));
+  ].map(([cat, nome, w, h, forma, alt]) => ({
+    cat, nome, w, h,
+    forma: forma || 'rect',
+    alt: alt ? { w: alt[0], h: alt[1] } : null,
+    cor: cores[cat],
+  }));
 
   const categorias = ['Todos'].concat([...new Set(itens.map((i) => i.cat))]);
 

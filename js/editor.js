@@ -163,9 +163,15 @@ App.Editor = (function () {
       y: G.clamp(c.y, p.h / 2, Math.max(p.h / 2, a.h - p.h / 2)),
       rot: 0, color: p.cor || '#e2e5ec',
     };
+    if (p.alt && p.alt.w > 0 && p.alt.h > 0) {
+      it.alt = { w: p.alt.w, h: p.alt.h };
+      it.open = false;
+    }
     S.update(() => { a.items.push(it); });
     select(it.id);
-    onHint(p.nome + ' adicionado — arraste para posicionar');
+    onHint(it.alt
+      ? p.nome + ' adicionado — toque nele de novo para abrir'
+      : p.nome + ' adicionado — arraste para posicionar');
   }
 
   function addOpening(kind, wall, posCenter) {
@@ -181,6 +187,34 @@ App.Editor = (function () {
     S.update(() => { a.items.push(it); });
     select(it.id);
     return it;
+  }
+
+  /* Abre/fecha um móvel de dois tamanhos (sofá-cama, mesa extensível…).
+     O encosto fica parado: a peça cresce para a frente. */
+  function toggleOpen(id) {
+    const a = area();
+    const it = id ? a.items.find((i) => i.id === id) : getSelected();
+    if (!it || it.type !== 'furniture' || !it.alt) return false;
+    let falta = 0;
+    S.update(() => {
+      const atual = { w: it.w, h: it.h };
+      const outro = { w: it.alt.w, h: it.alt.h };
+      const frente = G.rot(0, 1, 0, 0, it.rot || 0);
+      it.x += frente.x * (outro.h - atual.h) / 2;
+      it.y += frente.y * (outro.h - atual.h) / 2;
+      it.w = outro.w; it.h = outro.h;
+      it.alt = atual;
+      it.open = !it.open;
+      const b = G.bbox(it);
+      falta = Math.max(0, (b.x2 - b.x1) - a.w, (b.y2 - b.y1) - a.h);
+      keepInside(it, a);
+    });
+    let msg = (it.name || 'Móvel') + (it.open ? ' aberto: ' : ' fechado: ')
+      + G.num(it.w) + ' × ' + G.num(it.h) + ' m';
+    if (falta > 0.005) msg += ' — não cabe, faltam ' + Math.round(falta * 100) + ' cm';
+    onHint(msg);
+    draw();
+    return true;
   }
 
   function removeSelected() {
@@ -259,10 +293,12 @@ App.Editor = (function () {
 
     const it = hitItem(w.x, w.y);
     if (it) {
+      const jaEstava = selectedId === it.id;
       select(it.id);
       S.begin();
       gesture = {
         type: 'item', id: it.id, tx: true, start: p, moved: false,
+        wasSelected: jaEstava,
         grab: { x: w.x, y: w.y },
         orig: JSON.parse(JSON.stringify(it)),
       };
@@ -296,8 +332,9 @@ App.Editor = (function () {
 
     if (!gesture) return;
     const w = toWorld(p.x, p.y);
-    const moved = Math.hypot(p.x - gesture.start.x, p.y - gesture.start.y) > 5;
-    if (moved) gesture.moved = true;
+    const dist = Math.hypot(p.x - gesture.start.x, p.y - gesture.start.y);
+    gesture.maxMove = Math.max(gesture.maxMove || 0, dist);
+    if (dist > 5) gesture.moved = true;
 
     if (gesture.type === 'pan') {
       view.ox = gesture.origin.ox + (p.x - gesture.start.x);
@@ -422,7 +459,14 @@ App.Editor = (function () {
         draft = null;
         setTool('select');
       } else if (gesture.tx) {
+        // toque curto num item já selecionado = abrir/fechar (tolera o tremido do dedo)
+        const toque = gesture.type === 'item' && gesture.wasSelected && (gesture.maxMove || 0) <= 8;
+        if (toque) {
+          const it = getSelected(), o = gesture.orig;
+          if (it && it.type === 'furniture') S.live(() => { it.x = o.x; it.y = o.y; });
+        }
         S.commit();
+        if (toque) toggleOpen(gesture.id);
         onChange();
       } else if (gesture.type === 'pan' && !gesture.moved && gesture.hitEmpty) {
         select(null);
@@ -529,7 +573,7 @@ App.Editor = (function () {
   }
 
   return {
-    init, draw, fit, resize, setTool, select, getSelected, addFurniture, addOpening, keepInside,
+    init, draw, fit, resize, setTool, select, getSelected, addFurniture, addOpening, keepInside, toggleOpen,
     removeSelected, duplicateSelected, exportPNG, zoomAt,
     zoomIn: () => zoomAt(1.25, cssW / 2, cssH / 2),
     zoomOut: () => zoomAt(0.8, cssW / 2, cssH / 2),

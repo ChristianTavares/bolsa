@@ -24,6 +24,12 @@ e sem servidor.
   móvel que não está no catálogo. No painel *Item* o formato pode ser trocado a qualquer
   momento; num círculo, largura diferente da profundidade vira oval, e o botão *Igualar
   medidas* volta ao círculo perfeito.
+- **Móveis que abrem**: sofá-cama, poltrona-cama, sofá retrátil e mesa extensível guardam
+  dois tamanhos. Toque no móvel já selecionado (ou use o botão *Abrir/Fechar*) e ele estica
+  para o tamanho aberto mantendo o encosto parado na parede. Enquanto está selecionado, o
+  contorno tracejado mostra o outro tamanho, então dá para ver o espaço que a cama vai
+  precisar antes de abrir; se não couber no cômodo, o aviso diz quantos centímetros faltam.
+  Qualquer móvel pode virar um móvel de dois tamanhos pelo botão *Definir tamanho aberto*.
 - **Linhas**: desenhe linhas dentro do cômodo para dividir ambientes ou medir um vão antes
   de comprar o móvel. A linha mostra o comprimento real em metros, sempre relativo ao
   tamanho definido para o cômodo.

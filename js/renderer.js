@@ -175,19 +175,49 @@ App.render = (function () {
     ctx.lineWidth = selected ? 2 : 1.2;
     ctx.stroke();
 
+    // móvel de dois tamanhos: contorno do outro tamanho + linha da dobra
+    if (it.alt) {
+      const aw = it.alt.w * v.scale, ah = it.alt.h * v.scale;
+      ctx.save();
+      ctx.setLineDash([6, 4]);
+      if (selected) {
+        ctx.strokeStyle = 'rgba(76,91,212,.8)';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(-aw / 2, -sh / 2, aw, ah);
+      }
+      if (it.open && it.alt.h < it.h) {
+        ctx.strokeStyle = 'rgba(40,46,66,.4)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(-sw / 2, -sh / 2 + ah);
+        ctx.lineTo(sw / 2, -sh / 2 + ah);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // com a peça aberta, o rótulo vai para a parte que esticou
+    const dobrado = it.alt && it.open && it.alt.h < it.h;
+    if (dobrado) ctx.translate(0, (it.alt.h / 2) * v.scale);
+
     // rótulo (mantido legível: nunca de cabeça para baixo)
     let a = ((it.rot || 0) % 180 + 180) % 180;
     if (a > 90) a -= 180;
     ctx.rotate(G.d2r(a - (it.rot || 0)));
     const label = it.name || 'Móvel';
     const redondo = it.shape === 'circle';
-    const dims = redondo && Math.abs(it.w - it.h) < 1e-6
+    let dims = redondo && Math.abs(it.w - it.h) < 1e-6
       ? 'Ø ' + G.num(it.w) + ' m'
       : G.num(it.w) + ' × ' + G.num(it.h) + ' m';
+    if (it.alt) dims += it.open ? ' · aberto' : ' · fechado';
     const horiz = Math.abs(Math.cos(G.d2r(a))) > .7;
     let boxW = horiz ? sw : sh;
     let boxH = horiz ? sh : sw;
     if (redondo) { boxW *= 0.72; boxH *= 0.72; }
+    if (dobrado) {
+      const faixa = (it.h - it.alt.h) * v.scale;
+      if (horiz) boxH = Math.min(boxH, faixa); else boxW = Math.min(boxW, faixa);
+    }
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(28,32,48,.85)';
     if (boxW > 46 && boxH > 26) {
@@ -200,6 +230,16 @@ App.render = (function () {
       }
     }
     ctx.restore();
+
+    if (selected && it.alt) {
+      // etiqueta do outro tamanho, sempre logo à frente da peça
+      const d = Math.max(it.h, it.alt.h);
+      const borda = G.rot(it.x, it.y - it.h / 2 + d, it.x, it.y, it.rot || 0);
+      const frente = G.rot(0, 1, 0, 0, it.rot || 0);
+      pill(ctx,
+        (it.open ? 'fechado: ' : 'aberto: ') + G.num(it.alt.w) + ' × ' + G.num(it.alt.h) + ' m',
+        X(borda.x) + frente.x * 14, Y(borda.y) + frente.y * 14, C.brand);
+    }
   }
 
   function drawLine(ctx, it, v, X, Y, selected) {

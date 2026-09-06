@@ -99,7 +99,7 @@ App.UI = (function () {
       : (i.kind === 'porta' ? 'Porta' : 'Janela');
     const size = (i) => i.type === 'furniture'
       ? (i.shape === 'circle' && Math.abs(i.w - i.h) < 1e-6
-          ? `Ø ${G.num(i.w)} m` : `${G.num(i.w)}×${G.num(i.h)} m`)
+          ? `Ø ${G.num(i.w)} m` : `${G.num(i.w)}×${G.num(i.h)} m`) + (i.open ? ' · aberto' : '')
       : i.type === 'line' ? G.m(Math.hypot(i.x2 - i.x1, i.y2 - i.y1))
       : G.m(i.width);
     const color = (i) => i.type === 'furniture' ? (i.color || '#e2e5ec')
@@ -179,8 +179,9 @@ App.UI = (function () {
     $('#catalog').innerHTML = itens.map((i) => `
       <button class="cat-item" data-idx="${App.presets.itens.indexOf(i)}">
         <i class="${i.forma === 'circle' ? 'round' : ''}" style="background:${i.cor}"></i>
-        <b>${esc(i.nome)}</b>
-        <span>${i.forma === 'circle' ? 'Ø ' + G.num(i.w) + ' m' : G.num(i.w) + ' × ' + G.num(i.h) + ' m'}</span>
+        <b>${esc(i.nome)}${i.alt ? ' <em class="tag">abre</em>' : ''}</b>
+        <span>${i.forma === 'circle' ? 'Ø ' + G.num(i.w) + ' m' : G.num(i.w) + ' × ' + G.num(i.h) + ' m'}${
+          i.alt ? ' → ' + G.num(i.alt.w) + ' × ' + G.num(i.alt.h) + ' m' : ''}</span>
       </button>`).join('') || '<p class="muted small">Nada nesta categoria.</p>';
   }
 
@@ -195,8 +196,10 @@ App.UI = (function () {
   function propsHTML(it) {
     if (it.type === 'furniture') {
       const redondo = it.shape === 'circle';
+      const rot2 = (base) => it.open ? base + ' fechado (m)' : base + ' aberto (m)';
       return `
-      <div class="prop-head"><span class="badge">${redondo ? 'Círculo' : 'Móvel'}</span></div>
+      <div class="prop-head"><span class="badge">${redondo ? 'Círculo' : 'Móvel'}</span>${
+        it.alt ? `<span class="badge">${it.open ? 'aberto' : 'fechado'}</span>` : ''}</div>
       <div class="field"><label for="pName">Nome</label><input id="pName" value="${esc(it.name || '')}"></div>
       <div class="field"><label for="pShape">Formato</label>
         <select id="pShape">
@@ -205,10 +208,14 @@ App.UI = (function () {
         </select></div>
       <div class="row">${fieldNum('pW', 'Largura (m)', G.num(it.w))}${fieldNum('pH', 'Profundidade (m)', G.num(it.h))}</div>
       ${redondo ? '<p class="muted small">Largura igual à profundidade = círculo perfeito; diferentes = oval.</p>' : ''}
+      ${it.alt ? `<div class="row">${fieldNum('pAW', rot2('Largura'), G.num(it.alt.w))}${fieldNum('pAH', rot2('Profundidade'), G.num(it.alt.h))}</div>
+      <p class="muted small">Móvel de dois tamanhos: toque nele na planta (já selecionado) para abrir e fechar — o encosto fica parado e ele estica para a frente.</p>` : ''}
       <div class="row">${fieldNum('pX', 'X do centro (m)', G.num(it.x))}${fieldNum('pY', 'Y do centro (m)', G.num(it.y))}</div>
       <div class="row">${fieldNum('pR', 'Rotação (°)', G.num(it.rot || 0, 0))}
         <div class="field"><label for="pColor">Cor</label><input id="pColor" type="color" value="${toHex(it.color)}"></div></div>
       <div class="prop-actions">
+        ${it.alt ? `<button class="btn btn-primary" data-act="toggle">${it.open ? 'Fechar' : 'Abrir'}</button>`
+                 : '<button class="btn" data-act="addalt">Definir tamanho aberto</button>'}
         ${redondo ? '<button class="btn" data-act="equal">Igualar medidas</button>'
                   : '<button class="btn" data-act="rot90">Girar 90°</button>'}
         <button class="btn" data-act="dup">Duplicar</button>
@@ -257,7 +264,8 @@ App.UI = (function () {
       return;
     }
     empty.hidden = true; box.hidden = false;
-    const key = it.id + ':' + it.type + ':' + (it.kind || '') + ':' + (it.shape || '');
+    const key = it.id + ':' + it.type + ':' + (it.kind || '') + ':' + (it.shape || '')
+      + ':' + (it.alt ? 'alt' : '') + ':' + (it.open ? 'aberto' : '');
     if (key !== lastPropsKey) {
       lastPropsKey = key;
       box.innerHTML = propsHTML(it);
@@ -278,6 +286,7 @@ App.UI = (function () {
       setVal('pW', G.num(it.w)); setVal('pH', G.num(it.h));
       setVal('pX', G.num(it.x)); setVal('pY', G.num(it.y));
       setVal('pR', G.num(it.rot || 0, 0));
+      if (it.alt) { setVal('pAW', G.num(it.alt.w)); setVal('pAH', G.num(it.alt.h)); }
     } else if (it.type === 'line') {
       setVal('pLen', G.num(Math.hypot(it.x2 - it.x1, it.y2 - it.y1)));
       setVal('pAng', G.num(G.r2d(Math.atan2(it.y2 - it.y1, it.x2 - it.x1)), 0));
@@ -290,7 +299,6 @@ App.UI = (function () {
   }
 
   function wireProps(it) {
-    const box = $('#propsForm');
     const a = S.activeArea();
 
     const onNum = (id, apply) => {
@@ -321,6 +329,10 @@ App.UI = (function () {
       onNum('pX', (v) => { it.x = v; fix(); });
       onNum('pY', (v) => { it.y = v; fix(); });
       onNum('pR', (v) => { it.rot = ((v % 360) + 360) % 360; fix(); });
+      if (it.alt) {
+        onNum('pAW', (v) => { it.alt.w = G.clamp(v, 0.05, 50); });
+        onNum('pAH', (v) => { it.alt.h = G.clamp(v, 0.05, 50); });
+      }
     } else if (it.type === 'line') {
       onNum('pLen', (v) => {
         const ang = Math.atan2(it.y2 - it.y1, it.x2 - it.x1);
@@ -351,9 +363,15 @@ App.UI = (function () {
       });
     }
 
-    box.addEventListener('click', (ev) => {
+  }
+
+  /* Registrado uma única vez: o formulário é reconstruído, o elemento não. */
+  function bindPropsActions() {
+    $('#propsForm').addEventListener('click', (ev) => {
       const b = ev.target.closest('[data-act]');
       if (!b) return;
+      const it = E.getSelected();
+      if (!it) return;
       const act = b.dataset.act;
       if (act === 'del') E.removeSelected();
       if (act === 'dup') E.duplicateSelected();
@@ -363,6 +381,14 @@ App.UI = (function () {
       });
       if (act === 'flip') S.update(() => { it.flip = !it.flip; });
       if (act === 'equal') S.update(() => { it.h = it.w; it.rot = 0; E.keepInside(it, S.activeArea()); });
+      if (act === 'toggle') E.toggleOpen(it.id);
+      if (act === 'addalt') {
+        S.update(() => {
+          it.alt = { w: it.w, h: Math.round((it.h + 1) * 100) / 100 };
+          it.open = false;
+        });
+        toast('Ajuste o tamanho aberto e toque no móvel para abrir');
+      }
       E.draw();
     });
   }
@@ -576,6 +602,7 @@ App.UI = (function () {
 
   function init() {
     bind();
+    bindPropsActions();
     adaptMenu();
     renderCatalog();
     render();
