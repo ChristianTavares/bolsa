@@ -46,13 +46,18 @@ e sem servidor.
 1. Abra o site. Ele já vem com um quarto de exemplo (2,56 × 3,61 m).
 2. Em **Áreas**, toque em **+ Nova área** e informe nome, largura, profundidade e a
    espessura da parede. Use as medidas **internas** — de parede a parede, por dentro.
-3. Em **Adicionar**, escolha um móvel do catálogo (ou crie um com a medida que você tem).
-   Ele entra em escala no centro da tela.
+3. Em **Adicionar**, o topo é *Móvel com a medida que você tem* — retângulo, quadrado ou
+   círculo, você digita a medida. Abaixo fica o catálogo pronto, por categoria. Nos dois
+   casos a peça entra em escala no centro da tela.
 4. Arraste o móvel pela planta. A dica no rodapé mostra a medida e o ângulo enquanto você
    move.
 5. Use a ferramenta **Linha** para riscar dentro do cômodo: o comprimento aparece em metros.
    **Porta** e **Janela** são adicionadas tocando na parede desejada.
-6. Em **Item** você ajusta tudo por número: medidas, posição do centro, rotação, cor.
+6. Em **Editar** você ajusta tudo por número: as medidas vêm primeiro (largura e
+   profundidade em metros), depois posição do centro, rotação, nome e cor. Serve tanto para
+   um móvel do catálogo quanto para uma forma que você criou.
+7. Para **remover**: o 🗑 no topo da aba *Editar*, o botão *Excluir* no fim dela, o 🗑 na
+   lista de itens (aba *Áreas*) ou a tecla `Delete`. Qualquer exclusão volta com o ↶.
 
 Atalhos no desktop: `Delete` apaga o item selecionado, setas movem 5 cm (com `Shift`, 1 cm),
 `Esc` cancela a ferramenta atual, roda do mouse dá zoom, arrastar no vazio move a planta.

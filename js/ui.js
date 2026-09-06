@@ -104,12 +104,16 @@ App.UI = (function () {
       : G.m(i.width);
     const color = (i) => i.type === 'furniture' ? (i.color || '#e2e5ec')
       : i.type === 'line' ? '#3b49c4' : '#8a91a3';
-    ul.innerHTML = `<li class="muted small" style="padding:4px 2px">Itens de ${esc(a.name)} (${a.items.length})</li>`
+    ul.innerHTML = `<li class="muted small" style="padding:4px 2px">Itens de ${esc(a.name)} (${a.items.length}) — ✎ muda a medida, 🗑 exclui</li>`
       + a.items.map((i) => `
       <li class="item-row ${i.id === E.selectedId ? 'is-active' : ''}" data-id="${i.id}">
         <span class="dot" style="background:${color(i)}"></span>
         <span class="nm">${esc(label(i))}</span>
         <span class="sz">${size(i)}</span>
+        <span class="row-acts">
+          <button class="mini" data-act="edit" title="Editar medidas">✎</button>
+          <button class="mini danger" data-act="del" title="Excluir">🗑</button>
+        </span>
       </li>`).join('');
   }
 
@@ -199,53 +203,61 @@ App.UI = (function () {
       const rot2 = (base) => it.open ? base + ' fechado (m)' : base + ' aberto (m)';
       return `
       <div class="prop-head"><span class="badge">${redondo ? 'Círculo' : 'Móvel'}</span>${
-        it.alt ? `<span class="badge">${it.open ? 'aberto' : 'fechado'}</span>` : ''}</div>
+        it.alt ? `<span class="badge">${it.open ? 'aberto' : 'fechado'}</span>` : ''}
+        <span class="grow"></span>
+        <button class="mini" data-act="dup" title="Duplicar">⧉</button>
+        <button class="mini danger" data-act="del" title="Excluir móvel">🗑</button>
+      </div>
+      <p class="muted small" style="margin:-4px 0 10px">Digite a medida real do seu móvel — o desenho ajusta na hora.</p>
+      <div class="row">${fieldNum('pW', 'Largura (m)', G.num(it.w))}${fieldNum('pH', 'Profundidade (m)', G.num(it.h))}</div>
+      ${redondo ? '<p class="muted small">Largura igual à profundidade = círculo perfeito; diferentes = oval.</p>' : ''}
+      ${it.alt ? `<div class="row">${fieldNum('pAW', rot2('Largura'), G.num(it.alt.w))}${fieldNum('pAH', rot2('Profundidade'), G.num(it.alt.h))}</div>
+      <p class="muted small">Móvel de dois tamanhos: toque nele na planta (já selecionado) para abrir e fechar — o encosto fica parado e ele estica para a frente.</p>` : ''}
+      <div class="prop-actions">
+        ${it.alt ? `<button class="btn btn-primary" data-act="toggle">${it.open ? 'Fechar' : 'Abrir'}</button>`
+                 : '<button class="btn" data-act="addalt">Definir tamanho aberto</button>'}
+        ${redondo ? '<button class="btn" data-act="equal">Igualar medidas</button>'
+                  : '<button class="btn" data-act="rot90">Girar 90°</button>'}
+      </div>
+      <hr>
       <div class="field"><label for="pName">Nome</label><input id="pName" value="${esc(it.name || '')}"></div>
       <div class="field"><label for="pShape">Formato</label>
         <select id="pShape">
           <option value="rect" ${redondo ? '' : 'selected'}>Retângulo</option>
           <option value="circle" ${redondo ? 'selected' : ''}>Círculo / oval</option>
         </select></div>
-      <div class="row">${fieldNum('pW', 'Largura (m)', G.num(it.w))}${fieldNum('pH', 'Profundidade (m)', G.num(it.h))}</div>
-      ${redondo ? '<p class="muted small">Largura igual à profundidade = círculo perfeito; diferentes = oval.</p>' : ''}
-      ${it.alt ? `<div class="row">${fieldNum('pAW', rot2('Largura'), G.num(it.alt.w))}${fieldNum('pAH', rot2('Profundidade'), G.num(it.alt.h))}</div>
-      <p class="muted small">Móvel de dois tamanhos: toque nele na planta (já selecionado) para abrir e fechar — o encosto fica parado e ele estica para a frente.</p>` : ''}
       <div class="row">${fieldNum('pX', 'X do centro (m)', G.num(it.x))}${fieldNum('pY', 'Y do centro (m)', G.num(it.y))}</div>
       <div class="row">${fieldNum('pR', 'Rotação (°)', G.num(it.rot || 0, 0))}
         <div class="field"><label for="pColor">Cor</label><input id="pColor" type="color" value="${toHex(it.color)}"></div></div>
-      <div class="prop-actions">
-        ${it.alt ? `<button class="btn btn-primary" data-act="toggle">${it.open ? 'Fechar' : 'Abrir'}</button>`
-                 : '<button class="btn" data-act="addalt">Definir tamanho aberto</button>'}
-        ${redondo ? '<button class="btn" data-act="equal">Igualar medidas</button>'
-                  : '<button class="btn" data-act="rot90">Girar 90°</button>'}
-        <button class="btn" data-act="dup">Duplicar</button>
-        <button class="btn btn-danger" data-act="del">Excluir</button>
-      </div>`;
+      <button class="btn btn-danger block" data-act="del">Excluir móvel</button>`;
     }
     if (it.type === 'line') {
       const len = Math.hypot(it.x2 - it.x1, it.y2 - it.y1);
       const ang = G.r2d(Math.atan2(it.y2 - it.y1, it.x2 - it.x1));
       return `
-      <div class="prop-head"><span class="badge">Linha</span></div>
+      <div class="prop-head"><span class="badge">Linha</span>
+        <span class="grow"></span>
+        <button class="mini" data-act="dup" title="Duplicar">⧉</button>
+        <button class="mini danger" data-act="del" title="Excluir linha">🗑</button>
+      </div>
       <div class="row">${fieldNum('pLen', 'Comprimento (m)', G.num(len))}${fieldNum('pAng', 'Ângulo (°)', G.num(ang, 0))}</div>
       <p class="muted small">A linha está na mesma escala do cômodo — use para dividir ambientes ou medir vãos antes de comprar o móvel.</p>
-      <div class="prop-actions">
-        <button class="btn" data-act="dup">Duplicar</button>
-        <button class="btn btn-danger" data-act="del">Excluir</button>
-      </div>`;
+      <button class="btn btn-danger block" data-act="del">Excluir linha</button>`;
     }
     const paredes = { top: 'Superior', right: 'Direita', bottom: 'Inferior', left: 'Esquerda' };
+    const nomeAbertura = it.kind === 'porta' ? 'porta' : 'janela';
     return `
-      <div class="prop-head"><span class="badge">${it.kind === 'porta' ? 'Porta' : 'Janela'}</span></div>
+      <div class="prop-head"><span class="badge">${it.kind === 'porta' ? 'Porta' : 'Janela'}</span>
+        <span class="grow"></span>
+        <button class="mini" data-act="dup" title="Duplicar">⧉</button>
+        <button class="mini danger" data-act="del" title="Excluir ${nomeAbertura}">🗑</button>
+      </div>
+      <div class="row">${fieldNum('pOw', 'Largura (m)', G.num(it.width))}${fieldNum('pOp', 'Distância do canto (m)', G.num(it.pos))}</div>
       <div class="field"><label for="pWall">Parede</label>
         <select id="pWall">${Object.entries(paredes).map(([k, v]) =>
           `<option value="${k}" ${it.wall === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
-      <div class="row">${fieldNum('pOw', 'Largura (m)', G.num(it.width))}${fieldNum('pOp', 'Distância do canto (m)', G.num(it.pos))}</div>
-      <div class="prop-actions">
-        ${it.kind === 'porta' ? '<button class="btn" data-act="flip">Inverter abertura</button>' : ''}
-        <button class="btn" data-act="dup">Duplicar</button>
-        <button class="btn btn-danger" data-act="del">Excluir</button>
-      </div>`;
+      ${it.kind === 'porta' ? '<div class="prop-actions"><button class="btn" data-act="flip">Inverter abertura</button></div>' : ''}
+      <button class="btn btn-danger block" data-act="del">Excluir ${nomeAbertura}</button>`;
   }
 
   function toHex(c) {
@@ -517,7 +529,15 @@ App.UI = (function () {
       const row = ev.target.closest('.item-row');
       if (!row) return;
       E.select(row.dataset.id);
+      const act = ev.target.closest('[data-act]');
+      if (act && act.dataset.act === 'del') {
+        const nome = row.querySelector('.nm').textContent;
+        E.removeSelected();
+        toast(nome + ' excluído — desfaça no ↶ lá em cima');
+        return;
+      }
       setTab('props');
+      if (isMobile()) openPanel(true);
     });
 
     $('#btnNewArea').addEventListener('click', () => areaDialog(null));

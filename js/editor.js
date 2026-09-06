@@ -169,9 +169,9 @@ App.Editor = (function () {
     }
     S.update(() => { a.items.push(it); });
     select(it.id);
-    onHint(it.alt
-      ? p.nome + ' adicionado — toque nele de novo para abrir'
-      : p.nome + ' adicionado — arraste para posicionar');
+    onHint(p.nome + ' adicionado — ' + (it.alt
+      ? 'toque nele de novo para abrir'
+      : 'arraste na planta ou mude a medida na aba Editar'));
   }
 
   function addOpening(kind, wall, posCenter) {

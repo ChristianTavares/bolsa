@@ -168,6 +168,7 @@ hr{border:0;border-top:1px solid var(--line);margin:6px 0}
 .empty{padding:22px 10px;text-align:center;color:var(--ink-2);font-size:14px}
 .err{color:var(--danger);font-size:13px;margin:0 0 10px}
 .prop-head{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.prop-head .mini.danger{color:var(--danger);border-color:#f0c8cf}
 .prop-head .badge{
   font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--brand);
   background:var(--brand-soft);padding:3px 8px;border-radius:999px;
@@ -182,6 +183,9 @@ hr{border:0;border-top:1px solid var(--line);margin:6px 0}
 .item-row .dot{width:10px;height:10px;border-radius:3px;flex:0 0 10px}
 .item-row .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .item-row .sz{color:var(--ink-2);font-size:12px}
+.item-row .row-acts{display:flex;gap:4px;flex:0 0 auto}
+.item-row .mini{width:28px;height:28px;font-size:12px}
+.item-row .mini.danger{color:var(--danger)}
 
 /* ---------- dialogs ---------- */
 .dlg{
