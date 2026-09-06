@@ -88,6 +88,15 @@ App.geo = (function () {
   const m = (v) => num(v, 2) + ' m';
   const m2 = (v) => num(v, 2) + ' m²';
 
+  /* Descrição do sentido de abertura da porta. */
+  function ladoPorta(it) {
+    const horiz = it.wall === 'top' || it.wall === 'bottom';
+    if (horiz) return it.flip ? 'à direita' : 'à esquerda';
+    return it.flip ? 'embaixo' : 'em cima';
+  }
+  const descricaoPorta = (it) =>
+    'dobradiça ' + ladoPorta(it) + ', abre para ' + (it.out ? 'fora' : 'dentro');
+
   /* Aceita "2,56", "2.56", "256" (cm não — sempre metros). */
   function parseNum(str) {
     if (typeof str === 'number') return str;
@@ -98,6 +107,6 @@ App.geo = (function () {
   return {
     clamp, snap, d2r, r2d, rot, toLocal, corners,
     pointInRect, pointInEllipse, pointInItem, distToSegment, bbox,
-    num, m, m2, parseNum,
+    num, m, m2, parseNum, ladoPorta, descricaoPorta,
   };
 })();

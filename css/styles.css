@@ -163,6 +163,14 @@ hr{border:0;border-top:1px solid var(--line);margin:6px 0}
 }
 .field input[type=color]{padding:4px;height:42px}
 .field input:focus,.field select:focus{outline:2px solid var(--brand-soft);border-color:var(--brand)}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{
+  flex:1;background:var(--surface);border:0;padding:10px 6px;cursor:pointer;
+  font-size:13.5px;color:var(--ink-2);
+}
+.seg button + button{border-left:1px solid var(--line)}
+.seg button.is-on{background:var(--brand-soft);color:var(--brand);font-weight:600}
+
 .row{display:flex;gap:10px}
 .row .field{flex:1;min-width:0}
 .empty{padding:22px 10px;text-align:center;color:var(--ink-2);font-size:14px}

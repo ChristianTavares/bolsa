@@ -30,6 +30,10 @@ App.Store = (function () {
     a.items = Array.isArray(a.items) ? a.items : [];
     a.items.forEach((i) => {
       i.id = i.id || uid();
+      if (i.type === 'opening') {
+        i.flip = !!i.flip;
+        i.out = !!i.out;
+      }
       if (i.type === 'furniture') {
         if (i.shape !== 'circle') i.shape = 'rect';
         if (i.alt && (+i.alt.w > 0) && (+i.alt.h > 0)) {

@@ -182,7 +182,7 @@ App.Editor = (function () {
       id: S.uid(), type: 'opening', kind, wall,
       width: Math.min(width, run),
       pos: G.clamp(G.snap(posCenter - width / 2, SNAP), 0, Math.max(0, run - width)),
-      flip: false,
+      flip: false, out: false,
     };
     S.update(() => { a.items.push(it); });
     select(it.id);
@@ -213,6 +213,22 @@ App.Editor = (function () {
       + G.num(it.w) + ' × ' + G.num(it.h) + ' m';
     if (falta > 0.005) msg += ' — não cabe, faltam ' + Math.round(falta * 100) + ' cm';
     onHint(msg);
+    draw();
+    return true;
+  }
+
+  /* Toque numa porta já selecionada percorre as 4 combinações:
+     dobradiça de um lado ou do outro × abrir para dentro ou para fora. */
+  function cycleDoor(id) {
+    const a = area();
+    const it = id ? a.items.find((i) => i.id === id) : getSelected();
+    if (!it || it.type !== 'opening' || it.kind !== 'porta') return false;
+    S.update(() => {
+      const n = (((it.flip ? 1 : 0) + (it.out ? 2 : 0)) + 1) % 4;
+      it.flip = !!(n & 1);
+      it.out = !!(n & 2);
+    });
+    onHint('Porta: ' + G.descricaoPorta(it));
     draw();
     return true;
   }
@@ -277,9 +293,11 @@ App.Editor = (function () {
     if (tool === 'door' || tool === 'window') {
       const wall = nearestWall(w.x, w.y);
       const along = (wall === 'top' || wall === 'bottom') ? w.x : w.y;
-      addOpening(tool === 'door' ? 'porta' : 'janela', wall, along);
+      const nova = addOpening(tool === 'door' ? 'porta' : 'janela', wall, along);
       setTool('select');
-      onHint('Arraste para posicionar na parede');
+      onHint(nova.kind === 'porta'
+        ? 'Porta: arraste na parede; toque nela de novo para virar o lado que abre'
+        : 'Janela: arraste para posicionar na parede');
       return;
     }
 
@@ -464,9 +482,10 @@ App.Editor = (function () {
         if (toque) {
           const it = getSelected(), o = gesture.orig;
           if (it && it.type === 'furniture') S.live(() => { it.x = o.x; it.y = o.y; });
+          if (it && it.type === 'opening') S.live(() => { it.pos = o.pos; });
         }
         S.commit();
-        if (toque) toggleOpen(gesture.id);
+        if (toque) { toggleOpen(gesture.id) || cycleDoor(gesture.id); }
         onChange();
       } else if (gesture.type === 'pan' && !gesture.moved && gesture.hitEmpty) {
         select(null);
@@ -573,7 +592,7 @@ App.Editor = (function () {
   }
 
   return {
-    init, draw, fit, resize, setTool, select, getSelected, addFurniture, addOpening, keepInside, toggleOpen,
+    init, draw, fit, resize, setTool, select, getSelected, addFurniture, addOpening, keepInside, toggleOpen, cycleDoor,
     removeSelected, duplicateSelected, exportPNG, zoomAt,
     zoomIn: () => zoomAt(1.25, cssW / 2, cssH / 2),
     zoomOut: () => zoomAt(0.8, cssW / 2, cssH / 2),

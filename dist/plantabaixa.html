@@ -169,6 +169,14 @@ hr{border:0;border-top:1px solid var(--line);margin:6px 0}
 }
 .field input[type=color]{padding:4px;height:42px}
 .field input:focus,.field select:focus{outline:2px solid var(--brand-soft);border-color:var(--brand)}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{
+  flex:1;background:var(--surface);border:0;padding:10px 6px;cursor:pointer;
+  font-size:13.5px;color:var(--ink-2);
+}
+.seg button + button{border-left:1px solid var(--line)}
+.seg button.is-on{background:var(--brand-soft);color:var(--brand);font-weight:600}
+
 .row{display:flex;gap:10px}
 .row .field{flex:1;min-width:0}
 .empty{padding:22px 10px;text-align:center;color:var(--ink-2);font-size:14px}
@@ -500,6 +508,15 @@ App.geo = (function () {
   const m = (v) => num(v, 2) + ' m';
   const m2 = (v) => num(v, 2) + ' m²';
 
+  /* Descrição do sentido de abertura da porta. */
+  function ladoPorta(it) {
+    const horiz = it.wall === 'top' || it.wall === 'bottom';
+    if (horiz) return it.flip ? 'à direita' : 'à esquerda';
+    return it.flip ? 'embaixo' : 'em cima';
+  }
+  const descricaoPorta = (it) =>
+    'dobradiça ' + ladoPorta(it) + ', abre para ' + (it.out ? 'fora' : 'dentro');
+
   /* Aceita "2,56", "2.56", "256" (cm não — sempre metros). */
   function parseNum(str) {
     if (typeof str === 'number') return str;
@@ -510,7 +527,7 @@ App.geo = (function () {
   return {
     clamp, snap, d2r, r2d, rot, toLocal, corners,
     pointInRect, pointInEllipse, pointInItem, distToSegment, bbox,
-    num, m, m2, parseNum,
+    num, m, m2, parseNum, ladoPorta, descricaoPorta,
   };
 })();
 </script>
@@ -635,6 +652,10 @@ App.Store = (function () {
     a.items = Array.isArray(a.items) ? a.items : [];
     a.items.forEach((i) => {
       i.id = i.id || uid();
+      if (i.type === 'opening') {
+        i.flip = !!i.flip;
+        i.out = !!i.out;
+      }
       if (i.type === 'furniture') {
         if (i.shape !== 'circle') i.shape = 'rect';
         if (i.alt && (+i.alt.w > 0) && (+i.alt.h > 0)) {
@@ -886,8 +907,10 @@ App.render = (function () {
     } else {
       const hinge = it.flip ? g.b : g.a;
       const dir = it.flip ? { x: -g.u.x, y: -g.u.y } : g.u;
+      // n aponta para dentro do cômodo; com "abre para fora" a folha vai para o outro lado
+      const giro = it.out ? { x: -g.n.x, y: -g.n.y } : g.n;
       const leaf = { x: hinge.x + dir.x * g.width, y: hinge.y + dir.y * g.width };
-      const open = { x: hinge.x + g.n.x * g.width, y: hinge.y + g.n.y * g.width };
+      const open = { x: hinge.x + giro.x * g.width, y: hinge.y + giro.y * g.width };
       ctx.strokeStyle = '#8a91a3'; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(X(hinge.x), Y(hinge.y)); ctx.lineTo(X(open.x), Y(open.y)); ctx.stroke();
       const a0 = Math.atan2(leaf.y - hinge.y, leaf.x - hinge.x);
@@ -1323,7 +1346,7 @@ App.Editor = (function () {
       id: S.uid(), type: 'opening', kind, wall,
       width: Math.min(width, run),
       pos: G.clamp(G.snap(posCenter - width / 2, SNAP), 0, Math.max(0, run - width)),
-      flip: false,
+      flip: false, out: false,
     };
     S.update(() => { a.items.push(it); });
     select(it.id);
@@ -1354,6 +1377,22 @@ App.Editor = (function () {
       + G.num(it.w) + ' × ' + G.num(it.h) + ' m';
     if (falta > 0.005) msg += ' — não cabe, faltam ' + Math.round(falta * 100) + ' cm';
     onHint(msg);
+    draw();
+    return true;
+  }
+
+  /* Toque numa porta já selecionada percorre as 4 combinações:
+     dobradiça de um lado ou do outro × abrir para dentro ou para fora. */
+  function cycleDoor(id) {
+    const a = area();
+    const it = id ? a.items.find((i) => i.id === id) : getSelected();
+    if (!it || it.type !== 'opening' || it.kind !== 'porta') return false;
+    S.update(() => {
+      const n = (((it.flip ? 1 : 0) + (it.out ? 2 : 0)) + 1) % 4;
+      it.flip = !!(n & 1);
+      it.out = !!(n & 2);
+    });
+    onHint('Porta: ' + G.descricaoPorta(it));
     draw();
     return true;
   }
@@ -1418,9 +1457,11 @@ App.Editor = (function () {
     if (tool === 'door' || tool === 'window') {
       const wall = nearestWall(w.x, w.y);
       const along = (wall === 'top' || wall === 'bottom') ? w.x : w.y;
-      addOpening(tool === 'door' ? 'porta' : 'janela', wall, along);
+      const nova = addOpening(tool === 'door' ? 'porta' : 'janela', wall, along);
       setTool('select');
-      onHint('Arraste para posicionar na parede');
+      onHint(nova.kind === 'porta'
+        ? 'Porta: arraste na parede; toque nela de novo para virar o lado que abre'
+        : 'Janela: arraste para posicionar na parede');
       return;
     }
 
@@ -1605,9 +1646,10 @@ App.Editor = (function () {
         if (toque) {
           const it = getSelected(), o = gesture.orig;
           if (it && it.type === 'furniture') S.live(() => { it.x = o.x; it.y = o.y; });
+          if (it && it.type === 'opening') S.live(() => { it.pos = o.pos; });
         }
         S.commit();
-        if (toque) toggleOpen(gesture.id);
+        if (toque) { toggleOpen(gesture.id) || cycleDoor(gesture.id); }
         onChange();
       } else if (gesture.type === 'pan' && !gesture.moved && gesture.hitEmpty) {
         select(null);
@@ -1714,7 +1756,7 @@ App.Editor = (function () {
   }
 
   return {
-    init, draw, fit, resize, setTool, select, getSelected, addFurniture, addOpening, keepInside, toggleOpen,
+    init, draw, fit, resize, setTool, select, getSelected, addFurniture, addOpening, keepInside, toggleOpen, cycleDoor,
     removeSelected, duplicateSelected, exportPNG, zoomAt,
     zoomIn: () => zoomAt(1.25, cssW / 2, cssH / 2),
     zoomOut: () => zoomAt(0.8, cssW / 2, cssH / 2),
@@ -1972,6 +2014,25 @@ App.UI = (function () {
     }
     const paredes = { top: 'Superior', right: 'Direita', bottom: 'Inferior', left: 'Esquerda' };
     const nomeAbertura = it.kind === 'porta' ? 'porta' : 'janela';
+    const horiz = it.wall === 'top' || it.wall === 'bottom';
+    const ladoA = horiz ? 'Esquerda' : 'Em cima';
+    const ladoB = horiz ? 'Direita' : 'Embaixo';
+    const sentido = it.kind !== 'porta' ? '' : `
+      <div class="field">
+        <label>Dobradiça</label>
+        <div class="seg">
+          <button type="button" data-act="hinge" data-val="a" class="${it.flip ? '' : 'is-on'}">${ladoA}</button>
+          <button type="button" data-act="hinge" data-val="b" class="${it.flip ? 'is-on' : ''}">${ladoB}</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Abre para</label>
+        <div class="seg">
+          <button type="button" data-act="swing" data-val="in" class="${it.out ? '' : 'is-on'}">Dentro</button>
+          <button type="button" data-act="swing" data-val="out" class="${it.out ? 'is-on' : ''}">Fora</button>
+        </div>
+      </div>
+      <p class="muted small">Tocar na porta já selecionada também vira o sentido (passa pelas 4 posições).</p>`;
     return `
       <div class="prop-head"><span class="badge">${it.kind === 'porta' ? 'Porta' : 'Janela'}</span>
         <span class="grow"></span>
@@ -1982,7 +2043,7 @@ App.UI = (function () {
       <div class="field"><label for="pWall">Parede</label>
         <select id="pWall">${Object.entries(paredes).map(([k, v]) =>
           `<option value="${k}" ${it.wall === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
-      ${it.kind === 'porta' ? '<div class="prop-actions"><button class="btn" data-act="flip">Inverter abertura</button></div>' : ''}
+      ${sentido}
       <button class="btn btn-danger block" data-act="del">Excluir ${nomeAbertura}</button>`;
   }
 
@@ -2003,7 +2064,8 @@ App.UI = (function () {
     }
     empty.hidden = true; box.hidden = false;
     const key = it.id + ':' + it.type + ':' + (it.kind || '') + ':' + (it.shape || '')
-      + ':' + (it.alt ? 'alt' : '') + ':' + (it.open ? 'aberto' : '');
+      + ':' + (it.alt ? 'alt' : '') + ':' + (it.open ? 'aberto' : '')
+      + ':' + (it.wall || '') + (it.flip ? 'f' : '') + (it.out ? 'o' : '');
     if (key !== lastPropsKey) {
       lastPropsKey = key;
       box.innerHTML = propsHTML(it);
@@ -2117,7 +2179,8 @@ App.UI = (function () {
         it.rot = (((it.rot || 0) + 90) % 360);
         E.keepInside(it, S.activeArea());
       });
-      if (act === 'flip') S.update(() => { it.flip = !it.flip; });
+      if (act === 'hinge') S.update(() => { it.flip = b.dataset.val === 'b'; });
+      if (act === 'swing') S.update(() => { it.out = b.dataset.val === 'out'; });
       if (act === 'equal') S.update(() => { it.h = it.w; it.rot = 0; E.keepInside(it, S.activeArea()); });
       if (act === 'toggle') E.toggleOpen(it.id);
       if (act === 'addalt') {

@@ -246,6 +246,25 @@ App.UI = (function () {
     }
     const paredes = { top: 'Superior', right: 'Direita', bottom: 'Inferior', left: 'Esquerda' };
     const nomeAbertura = it.kind === 'porta' ? 'porta' : 'janela';
+    const horiz = it.wall === 'top' || it.wall === 'bottom';
+    const ladoA = horiz ? 'Esquerda' : 'Em cima';
+    const ladoB = horiz ? 'Direita' : 'Embaixo';
+    const sentido = it.kind !== 'porta' ? '' : `
+      <div class="field">
+        <label>Dobradiça</label>
+        <div class="seg">
+          <button type="button" data-act="hinge" data-val="a" class="${it.flip ? '' : 'is-on'}">${ladoA}</button>
+          <button type="button" data-act="hinge" data-val="b" class="${it.flip ? 'is-on' : ''}">${ladoB}</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Abre para</label>
+        <div class="seg">
+          <button type="button" data-act="swing" data-val="in" class="${it.out ? '' : 'is-on'}">Dentro</button>
+          <button type="button" data-act="swing" data-val="out" class="${it.out ? 'is-on' : ''}">Fora</button>
+        </div>
+      </div>
+      <p class="muted small">Tocar na porta já selecionada também vira o sentido (passa pelas 4 posições).</p>`;
     return `
       <div class="prop-head"><span class="badge">${it.kind === 'porta' ? 'Porta' : 'Janela'}</span>
         <span class="grow"></span>
@@ -256,7 +275,7 @@ App.UI = (function () {
       <div class="field"><label for="pWall">Parede</label>
         <select id="pWall">${Object.entries(paredes).map(([k, v]) =>
           `<option value="${k}" ${it.wall === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
-      ${it.kind === 'porta' ? '<div class="prop-actions"><button class="btn" data-act="flip">Inverter abertura</button></div>' : ''}
+      ${sentido}
       <button class="btn btn-danger block" data-act="del">Excluir ${nomeAbertura}</button>`;
   }
 
@@ -277,7 +296,8 @@ App.UI = (function () {
     }
     empty.hidden = true; box.hidden = false;
     const key = it.id + ':' + it.type + ':' + (it.kind || '') + ':' + (it.shape || '')
-      + ':' + (it.alt ? 'alt' : '') + ':' + (it.open ? 'aberto' : '');
+      + ':' + (it.alt ? 'alt' : '') + ':' + (it.open ? 'aberto' : '')
+      + ':' + (it.wall || '') + (it.flip ? 'f' : '') + (it.out ? 'o' : '');
     if (key !== lastPropsKey) {
       lastPropsKey = key;
       box.innerHTML = propsHTML(it);
@@ -391,7 +411,8 @@ App.UI = (function () {
         it.rot = (((it.rot || 0) + 90) % 360);
         E.keepInside(it, S.activeArea());
       });
-      if (act === 'flip') S.update(() => { it.flip = !it.flip; });
+      if (act === 'hinge') S.update(() => { it.flip = b.dataset.val === 'b'; });
+      if (act === 'swing') S.update(() => { it.out = b.dataset.val === 'out'; });
       if (act === 'equal') S.update(() => { it.h = it.w; it.rot = 0; E.keepInside(it, S.activeArea()); });
       if (act === 'toggle') E.toggleOpen(it.id);
       if (act === 'addalt') {

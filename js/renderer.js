@@ -134,8 +134,10 @@ App.render = (function () {
     } else {
       const hinge = it.flip ? g.b : g.a;
       const dir = it.flip ? { x: -g.u.x, y: -g.u.y } : g.u;
+      // n aponta para dentro do cômodo; com "abre para fora" a folha vai para o outro lado
+      const giro = it.out ? { x: -g.n.x, y: -g.n.y } : g.n;
       const leaf = { x: hinge.x + dir.x * g.width, y: hinge.y + dir.y * g.width };
-      const open = { x: hinge.x + g.n.x * g.width, y: hinge.y + g.n.y * g.width };
+      const open = { x: hinge.x + giro.x * g.width, y: hinge.y + giro.y * g.width };
       ctx.strokeStyle = '#8a91a3'; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(X(hinge.x), Y(hinge.y)); ctx.lineTo(X(open.x), Y(open.y)); ctx.stroke();
       const a0 = Math.atan2(leaf.y - hinge.y, leaf.x - hinge.x);

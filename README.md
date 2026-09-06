@@ -52,7 +52,8 @@ e sem servidor.
 4. Arraste o móvel pela planta. A dica no rodapé mostra a medida e o ângulo enquanto você
    move.
 5. Use a ferramenta **Linha** para riscar dentro do cômodo: o comprimento aparece em metros.
-   **Porta** e **Janela** são adicionadas tocando na parede desejada.
+   **Porta** e **Janela** são adicionadas tocando na parede desejada; na porta, toque de
+   novo para virar o lado que abre.
 6. Em **Editar** você ajusta tudo por número: as medidas vêm primeiro (largura e
    profundidade em metros), depois posição do centro, rotação, nome e cor. Serve tanto para
    um móvel do catálogo quanto para uma forma que você criou.
