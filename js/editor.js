@@ -1,0 +1,538 @@
+/* Canvas: transformação de vista, gestos (mouse + toque) e edição dos itens. */
+window.App = window.App || {};
+
+App.Editor = (function () {
+  const G = App.geo, S = App.Store;
+
+  const SNAP = 0.05;       // 5 cm
+  const WALL_SNAP = 0.12;  // encosta na parede
+  const ANG_SNAP = 15;     // graus
+
+  let canvas, ctx, stage;
+  let view = { scale: 100, ox: 0, oy: 0 };
+  let tool = 'select';
+  let selectedId = null;
+  let draft = null;
+  let handles = [];
+  let cssW = 0, cssH = 0;
+  let onChange = () => {};
+  let onHint = () => {};
+  let raf = 0;
+
+  const pointers = new Map();
+  let gesture = null;
+  let pinch = null;
+
+  const area = () => S.activeArea();
+  const toWorld = (sx, sy) => ({ x: (sx - view.ox) / view.scale, y: (sy - view.oy) / view.scale });
+
+  /* ---------- render loop ---------- */
+  function resize() {
+    const r = stage.getBoundingClientRect();
+    cssW = Math.max(1, r.width); cssH = Math.max(1, r.height);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+
+  function draw() {
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      raf = 0;
+      handles = App.render(ctx, {
+        area: area(), view, width: cssW, height: cssH,
+        selectedId, draft,
+      });
+    });
+  }
+
+  function fit(animate) {
+    const a = area();
+    if (!a || !cssW) return;
+    const pad = 70;
+    const w = a.w + 2 * a.wall, h = a.h + 2 * a.wall;
+    const s = Math.min((cssW - pad * 2) / w, (cssH - pad * 2) / h);
+    view.scale = G.clamp(s, 4, 600);
+    view.ox = cssW / 2 - (a.w / 2) * view.scale;
+    view.oy = cssH / 2 - (a.h / 2) * view.scale;
+    void animate;
+    draw();
+  }
+
+  function zoomAt(factor, sx, sy) {
+    const before = toWorld(sx, sy);
+    view.scale = G.clamp(view.scale * factor, 6, 800);
+    view.ox = sx - before.x * view.scale;
+    view.oy = sy - before.y * view.scale;
+    draw();
+  }
+
+  /* ---------- seleção ---------- */
+  function select(id) {
+    if (selectedId === id) return;
+    selectedId = id;
+    draw();
+    onChange();
+  }
+  const getSelected = () => { const a = area(); return a && a.items.find((i) => i.id === selectedId); };
+
+  function hitHandle(sx, sy) {
+    for (const h of handles) {
+      if (Math.hypot(sx - h.sx, sy - h.sy) <= (h.r || 9) + 8) return h;
+    }
+    return null;
+  }
+
+  function hitItem(wx, wy) {
+    const a = area();
+    if (!a) return null;
+    const tol = 12 / view.scale;
+    const ordered = a.items.slice().reverse();
+    for (const it of ordered) {
+      if (it.type === 'line' &&
+          G.distToSegment(wx, wy, it.x1, it.y1, it.x2, it.y2) <= tol) return it;
+    }
+    for (const it of ordered) {
+      if (it.type === 'furniture' && G.pointInRect(wx, wy, it, 0)) return it;
+    }
+    for (const it of ordered) {
+      if (it.type === 'opening') {
+        const g = App.render.openingGeom(a, it);
+        if (wx >= g.rect.x1 - tol && wx <= g.rect.x2 + tol &&
+            wy >= g.rect.y1 - tol && wy <= g.rect.y2 + tol) return it;
+      }
+    }
+    return null;
+  }
+
+  /* ---------- snapping ---------- */
+  function snapFurniture(it) {
+    it.x = G.snap(it.x, SNAP);
+    it.y = G.snap(it.y, SNAP);
+    const a = area();
+    const b = G.bbox(it);
+    if (b.x1 > -WALL_SNAP && b.x1 < WALL_SNAP) it.x += -b.x1;
+    if (Math.abs(b.x2 - a.w) < WALL_SNAP) it.x += a.w - b.x2;
+    if (b.y1 > -WALL_SNAP && b.y1 < WALL_SNAP) it.y += -b.y1;
+    if (Math.abs(b.y2 - a.h) < WALL_SNAP) it.y += a.h - b.y2;
+  }
+
+  /* Mantém o móvel dentro do cômodo (se couber). */
+  function keepInside(it, a) {
+    const b = G.bbox(it);
+    const bw = b.x2 - b.x1, bh = b.y2 - b.y1;
+    it.x = bw <= a.w ? G.clamp(it.x, bw / 2, a.w - bw / 2) : a.w / 2;
+    it.y = bh <= a.h ? G.clamp(it.y, bh / 2, a.h - bh / 2) : a.h / 2;
+    it.x = Math.round(it.x * 1000) / 1000;
+    it.y = Math.round(it.y * 1000) / 1000;
+  }
+
+  function snapPoint(p) {
+    return { x: G.snap(p.x, SNAP), y: G.snap(p.y, SNAP) };
+  }
+
+  function nearestWall(wx, wy) {
+    const a = area();
+    const d = {
+      top: Math.abs(wy), bottom: Math.abs(a.h - wy),
+      left: Math.abs(wx), right: Math.abs(a.w - wx),
+    };
+    return Object.keys(d).sort((k1, k2) => d[k1] - d[k2])[0];
+  }
+
+  /* ---------- criação de itens ---------- */
+  function centerOfView() {
+    const a = area();
+    const c = toWorld(cssW / 2, cssH / 2);
+    return { x: G.clamp(c.x, 0, a.w), y: G.clamp(c.y, 0, a.h) };
+  }
+
+  function addFurniture(p) {
+    const a = area();
+    if (!a) return;
+    const c = centerOfView();
+    const it = {
+      id: S.uid(), type: 'furniture', name: p.nome,
+      w: Math.min(p.w, a.w), h: Math.min(p.h, a.h),
+      x: G.clamp(c.x, p.w / 2, Math.max(p.w / 2, a.w - p.w / 2)),
+      y: G.clamp(c.y, p.h / 2, Math.max(p.h / 2, a.h - p.h / 2)),
+      rot: 0, color: p.cor || '#e2e5ec',
+    };
+    S.update(() => { a.items.push(it); });
+    select(it.id);
+    onHint(p.nome + ' adicionado — arraste para posicionar');
+  }
+
+  function addOpening(kind, wall, posCenter) {
+    const a = area();
+    const width = kind === 'porta' ? 0.80 : 1.00;
+    const run = (wall === 'top' || wall === 'bottom') ? a.w : a.h;
+    const it = {
+      id: S.uid(), type: 'opening', kind, wall,
+      width: Math.min(width, run),
+      pos: G.clamp(G.snap(posCenter - width / 2, SNAP), 0, Math.max(0, run - width)),
+      flip: false,
+    };
+    S.update(() => { a.items.push(it); });
+    select(it.id);
+    return it;
+  }
+
+  function removeSelected() {
+    const a = area();
+    if (!a || !selectedId) return;
+    S.update(() => { a.items = a.items.filter((i) => i.id !== selectedId); });
+    select(null);
+  }
+
+  function duplicateSelected() {
+    const a = area(), it = getSelected();
+    if (!it) return;
+    const copy = JSON.parse(JSON.stringify(it));
+    copy.id = S.uid();
+    if (copy.type === 'furniture') { copy.x += 0.2; copy.y += 0.2; }
+    if (copy.type === 'line') { copy.x1 += 0.2; copy.x2 += 0.2; copy.y1 += 0.2; copy.y2 += 0.2; }
+    if (copy.type === 'opening') { copy.pos += 0.2; }
+    S.update(() => { a.items.push(copy); });
+    select(copy.id);
+  }
+
+  /* ---------- gestos ---------- */
+  function localPos(ev) {
+    const r = canvas.getBoundingClientRect();
+    return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+  }
+
+  function startPinch() {
+    const pts = [...pointers.values()];
+    pinch = {
+      dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
+      mid: { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 },
+    };
+  }
+
+  function onDown(ev) {
+    canvas.setPointerCapture(ev.pointerId);
+    const p = localPos(ev);
+    pointers.set(ev.pointerId, p);
+
+    if (pointers.size === 2) {
+      if (gesture && gesture.tx) S.commit();
+      gesture = null; draft = null;
+      startPinch();
+      return;
+    }
+    if (pointers.size > 2) return;
+
+    const w = toWorld(p.x, p.y);
+    const a = area();
+    if (!a) return;
+
+    if (tool === 'line') {
+      const sp = snapPoint(w);
+      draft = { x1: sp.x, y1: sp.y, x2: sp.x, y2: sp.y };
+      gesture = { type: 'line', start: p };
+      draw();
+      return;
+    }
+    if (tool === 'door' || tool === 'window') {
+      const wall = nearestWall(w.x, w.y);
+      const along = (wall === 'top' || wall === 'bottom') ? w.x : w.y;
+      addOpening(tool === 'door' ? 'porta' : 'janela', wall, along);
+      setTool('select');
+      onHint('Arraste para posicionar na parede');
+      return;
+    }
+
+    const h = hitHandle(p.x, p.y);
+    if (h && getSelected()) {
+      S.begin();
+      gesture = { type: 'handle', handle: h, tx: true, start: p, moved: false,
+                  orig: JSON.parse(JSON.stringify(getSelected())) };
+      return;
+    }
+
+    const it = hitItem(w.x, w.y);
+    if (it) {
+      select(it.id);
+      S.begin();
+      gesture = {
+        type: 'item', id: it.id, tx: true, start: p, moved: false,
+        grab: { x: w.x, y: w.y },
+        orig: JSON.parse(JSON.stringify(it)),
+      };
+      return;
+    }
+
+    gesture = { type: 'pan', start: p, origin: { ox: view.ox, oy: view.oy }, moved: false, hitEmpty: true };
+  }
+
+  function onMove(ev) {
+    if (!pointers.has(ev.pointerId)) return;
+    const p = localPos(ev);
+    pointers.set(ev.pointerId, p);
+
+    if (pointers.size >= 2 && pinch) {
+      const pts = [...pointers.values()];
+      const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      const mid = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+      if (pinch.dist > 0) {
+        const before = toWorld(mid.x, mid.y);
+        view.scale = G.clamp(view.scale * (dist / pinch.dist), 6, 800);
+        view.ox = mid.x - before.x * view.scale;
+        view.oy = mid.y - before.y * view.scale;
+      }
+      view.ox += mid.x - pinch.mid.x;
+      view.oy += mid.y - pinch.mid.y;
+      pinch = { dist, mid };
+      draw();
+      return;
+    }
+
+    if (!gesture) return;
+    const w = toWorld(p.x, p.y);
+    const moved = Math.hypot(p.x - gesture.start.x, p.y - gesture.start.y) > 5;
+    if (moved) gesture.moved = true;
+
+    if (gesture.type === 'pan') {
+      view.ox = gesture.origin.ox + (p.x - gesture.start.x);
+      view.oy = gesture.origin.oy + (p.y - gesture.start.y);
+      draw();
+      return;
+    }
+    if (gesture.type === 'line') {
+      let sp = snapPoint(w);
+      const dx = sp.x - draft.x1, dy = sp.y - draft.y1;
+      const ang = G.r2d(Math.atan2(dy, dx));
+      const snapped = Math.round(ang / ANG_SNAP) * ANG_SNAP;
+      if (Math.abs(snapped - ang) < 6) {
+        const len = Math.hypot(dx, dy);
+        sp = { x: draft.x1 + Math.cos(G.d2r(snapped)) * len, y: draft.y1 + Math.sin(G.d2r(snapped)) * len };
+      }
+      draft.x2 = sp.x; draft.y2 = sp.y;
+      onHint('Comprimento: ' + G.m(Math.hypot(draft.x2 - draft.x1, draft.y2 - draft.y1)));
+      draw();
+      return;
+    }
+    if (gesture.type === 'item') { moveItem(w); return; }
+    if (gesture.type === 'handle') { dragHandle(w, p); return; }
+  }
+
+  function moveItem(w) {
+    const a = area(), it = getSelected();
+    if (!it) return;
+    const o = gesture.orig;
+    const dx = w.x - gesture.grab.x, dy = w.y - gesture.grab.y;
+    S.live(() => {
+      if (it.type === 'furniture') {
+        it.x = o.x + dx; it.y = o.y + dy;
+        snapFurniture(it);
+        keepInside(it, a);
+      } else if (it.type === 'line') {
+        it.x1 = G.snap(o.x1 + dx, SNAP); it.y1 = G.snap(o.y1 + dy, SNAP);
+        it.x2 = G.snap(o.x2 + dx, SNAP); it.y2 = G.snap(o.y2 + dy, SNAP);
+      } else if (it.type === 'opening') {
+        const horiz = (it.wall === 'top' || it.wall === 'bottom');
+        const run = horiz ? a.w : a.h;
+        it.pos = G.clamp(G.snap(o.pos + (horiz ? dx : dy), SNAP), 0, Math.max(0, run - it.width));
+      }
+    });
+    onHint(itemHint(it));
+  }
+
+  function dragHandle(w, p) {
+    const a = area(), it = getSelected();
+    if (!it) return;
+    const k = gesture.handle.kind, o = gesture.orig;
+
+    S.live(() => {
+      if (it.type === 'line') {
+        const sp = snapPoint(w);
+        if (k === 'p1') { it.x1 = sp.x; it.y1 = sp.y; } else { it.x2 = sp.x; it.y2 = sp.y; }
+        return;
+      }
+      if (it.type === 'opening') {
+        const horiz = (it.wall === 'top' || it.wall === 'bottom');
+        const run = horiz ? a.w : a.h;
+        const along = G.clamp(G.snap(horiz ? w.x : w.y, SNAP), 0, run);
+        const end = o.pos + o.width;
+        if (k === 'o1') {
+          const pos = Math.min(along, end - 0.2);
+          it.pos = Math.max(0, pos); it.width = end - it.pos;
+        } else {
+          it.width = G.clamp(along - o.pos, 0.2, run - o.pos);
+        }
+        return;
+      }
+      if (k === 'rotate') {
+        const ang = G.r2d(Math.atan2(w.y - it.y, w.x - it.x)) + 90;
+        const snapped = Math.round(ang / ANG_SNAP) * ANG_SNAP;
+        it.rot = Math.abs(snapped - ang) < 7 ? ((snapped % 360) + 360) % 360 : ((ang % 360) + 360) % 360;
+        it.rot = Math.round(it.rot * 10) / 10;
+        return;
+      }
+      // redimensionar por um canto: o canto oposto fica fixo
+      const idx = gesture.handle.i;
+      const cs = G.corners(o);
+      const fixed = cs[(idx + 2) % 4];
+      const d = G.rot(w.x, w.y, fixed.x, fixed.y, -(o.rot || 0));
+      let nw = Math.abs(d.x - fixed.x), nh = Math.abs(d.y - fixed.y);
+      nw = Math.max(0.1, G.snap(nw, SNAP));
+      nh = Math.max(0.1, G.snap(nh, SNAP));
+      const sx = Math.sign(d.x - fixed.x) || 1, sy = Math.sign(d.y - fixed.y) || 1;
+      const localCenter = { x: fixed.x + sx * nw / 2, y: fixed.y + sy * nh / 2 };
+      const c = G.rot(localCenter.x, localCenter.y, fixed.x, fixed.y, o.rot || 0);
+      it.w = nw; it.h = nh; it.x = c.x; it.y = c.y;
+    });
+    void p;
+    onHint(itemHint(it));
+  }
+
+  function itemHint(it) {
+    if (!it) return '';
+    if (it.type === 'furniture') return it.name + ': ' + G.num(it.w) + ' × ' + G.num(it.h) + ' m · ' + Math.round(it.rot || 0) + '°';
+    if (it.type === 'line') return 'Linha: ' + G.m(Math.hypot(it.x2 - it.x1, it.y2 - it.y1));
+    if (it.type === 'opening') return (it.kind === 'porta' ? 'Porta' : 'Janela') + ': ' + G.m(it.width);
+    return '';
+  }
+
+  function onUp(ev) {
+    pointers.delete(ev.pointerId);
+    try { canvas.releasePointerCapture(ev.pointerId); } catch (e) { /* ignore */ }
+
+    if (pointers.size === 1) { pinch = null; startPanFromRemaining(); return; }
+    if (pointers.size > 0) return;
+    pinch = null;
+
+    if (gesture) {
+      if (gesture.type === 'line' && draft) {
+        const len = Math.hypot(draft.x2 - draft.x1, draft.y2 - draft.y1);
+        const a = area();
+        if (len >= 0.1) {
+          const l = { id: S.uid(), type: 'line', x1: draft.x1, y1: draft.y1, x2: draft.x2, y2: draft.y2 };
+          S.update(() => { a.items.push(l); });
+          select(l.id);
+          onHint('Linha de ' + G.m(len) + ' criada');
+        }
+        draft = null;
+        setTool('select');
+      } else if (gesture.tx) {
+        S.commit();
+        onChange();
+      } else if (gesture.type === 'pan' && !gesture.moved && gesture.hitEmpty) {
+        select(null);
+      }
+    }
+    gesture = null;
+    draw();
+  }
+
+  function startPanFromRemaining() {
+    const p = [...pointers.values()][0];
+    gesture = { type: 'pan', start: p, origin: { ox: view.ox, oy: view.oy }, moved: true, hitEmpty: false };
+  }
+
+  function onWheel(ev) {
+    ev.preventDefault();
+    const p = localPos(ev);
+    const f = Math.pow(0.999, ev.deltaY * (ev.deltaMode === 1 ? 16 : 1));
+    zoomAt(f, p.x, p.y);
+  }
+
+  function onKey(ev) {
+    const tag = (ev.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
+    const it = getSelected();
+    if ((ev.key === 'Delete' || ev.key === 'Backspace') && it) { ev.preventDefault(); removeSelected(); return; }
+    if (ev.key === 'Escape') { draft = null; setTool('select'); select(null); return; }
+    if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'z') {
+      ev.preventDefault();
+      if (ev.shiftKey) S.redo(); else S.undo();
+      return;
+    }
+    if (it && it.type === 'furniture' && ev.key.startsWith('Arrow')) {
+      ev.preventDefault();
+      const step = ev.shiftKey ? 0.01 : SNAP;
+      S.update(() => {
+        if (ev.key === 'ArrowLeft') it.x -= step;
+        if (ev.key === 'ArrowRight') it.x += step;
+        if (ev.key === 'ArrowUp') it.y -= step;
+        if (ev.key === 'ArrowDown') it.y += step;
+        it.x = Math.round(it.x * 1000) / 1000;
+        it.y = Math.round(it.y * 1000) / 1000;
+      });
+    }
+  }
+
+  /* ---------- exportar PNG ---------- */
+  function exportPNG(filename) {
+    const a = area();
+    if (!a) return;
+    const pad = 90;
+    const scale = 140;
+    const W = Math.round((a.w + 2 * a.wall) * scale + pad * 2);
+    const H = Math.round((a.h + 2 * a.wall) * scale + pad * 2);
+    const c = document.createElement('canvas');
+    const dpr = 2;
+    c.width = W * dpr; c.height = H * dpr;
+    const cx = c.getContext('2d');
+    cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    App.render(cx, {
+      area: a, width: W, height: H, selectedId: null, exportMode: true,
+      view: { scale, ox: pad + a.wall * scale, oy: pad + a.wall * scale },
+    });
+    c.toBlob((blob) => {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = (filename || a.name.replace(/\s+/g, '-').toLowerCase()) + '.png';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }, 'image/png');
+  }
+
+  /* ---------- API ---------- */
+  function setTool(t) {
+    tool = t;
+    document.querySelectorAll('.tool').forEach((b) => b.classList.toggle('is-active', b.dataset.tool === t));
+    if (t === 'line') onHint('Arraste dentro do cômodo para desenhar a linha');
+    if (t === 'door') onHint('Toque na parede onde fica a porta');
+    if (t === 'window') onHint('Toque na parede onde fica a janela');
+    canvas.style.cursor = t === 'select' ? 'default' : 'crosshair';
+  }
+
+  function init(opts) {
+    canvas = opts.canvas; stage = opts.stage;
+    ctx = canvas.getContext('2d');
+    onChange = opts.onChange || onChange;
+    onHint = opts.onHint || onHint;
+
+    canvas.addEventListener('pointerdown', onDown);
+    canvas.addEventListener('pointermove', onMove);
+    canvas.addEventListener('pointerup', onUp);
+    canvas.addEventListener('pointercancel', onUp);
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('resize', resize);
+    if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
+
+    resize();
+    fit();
+  }
+
+  return {
+    init, draw, fit, resize, setTool, select, getSelected, addFurniture, addOpening, keepInside,
+    removeSelected, duplicateSelected, exportPNG, zoomAt,
+    zoomIn: () => zoomAt(1.25, cssW / 2, cssH / 2),
+    zoomOut: () => zoomAt(0.8, cssW / 2, cssH / 2),
+    get selectedId() { return selectedId; },
+    get tool() { return tool; },
+  };
+})();
