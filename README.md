@@ -61,6 +61,17 @@ Como é um site estático na raiz do repositório, dá para publicar direto no G
 (Settings → Pages → Deploy from a branch → `/` root) ou em qualquer hospedagem estática
 (Netlify, Vercel, S3…).
 
+Também existe uma versão em **arquivo único** (CSS e JS embutidos), útil para publicar sem
+levar a pasta de assets junto:
+
+```bash
+node tools/build-single.js   # gera dist/plantabaixa.html
+```
+
+Dentro de um preview embutido (iframe), o navegador bloqueia downloads, então os itens
+"Salvar imagem" e "Exportar projeto" ficam escondidos — eles funcionam com o site aberto
+em aba própria.
+
 ## Estrutura
 
 ```
@@ -73,6 +84,7 @@ js/renderer.js      desenho da planta no canvas (paredes, cotas, móveis, portas
 js/editor.js        vista (zoom/pan), gestos de toque e mouse, edição dos itens
 js/ui.js            painéis, formulários, catálogo, menus, importar/exportar
 js/app.js           inicialização
+tools/build-single.js  gera dist/plantabaixa.html (tudo embutido num arquivo só)
 ```
 
 Todas as medidas no código são em **metros**; a vista converte metros para pixels com um

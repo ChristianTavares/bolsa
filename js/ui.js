@@ -502,8 +502,28 @@ App.UI = (function () {
     });
   }
 
+  /* Dentro de um preview/iframe o navegador bloqueia downloads. */
+  const embedded = (() => {
+    try { return window.top !== window.self; } catch (e) { return true; }
+  })();
+
+  function adaptMenu() {
+    if (!embedded) return;
+    ['png', 'export', 'import'].forEach((act) => {
+      const b = document.querySelector('#moreMenu [data-act="' + act + '"]');
+      if (b) b.hidden = true;
+    });
+    const note = document.createElement('p');
+    note.className = 'muted small';
+    note.style.padding = '8px 12px';
+    note.style.margin = '0';
+    note.textContent = 'Salvar PNG e exportar .json só funcionam com o site aberto em aba própria.';
+    $('#moreMenu').insertBefore(note, $('#moreMenu').firstChild);
+  }
+
   function init() {
     bind();
+    adaptMenu();
     renderCatalog();
     render();
     S.subscribe(render);

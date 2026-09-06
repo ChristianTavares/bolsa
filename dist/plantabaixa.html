@@ -1,0 +1,2106 @@
+
+<meta name="theme-color" content="#2f3542">
+<meta name="description" content="Planejador de planta baixa: crie áreas com as medidas reais e posicione móveis e linhas em escala.">
+<title>PlantaBaixa</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%232f3542'/%3E%3Crect x='7' y='7' width='18' height='18' fill='none' stroke='%23fff' stroke-width='2.5'/%3E%3Cpath d='M7 19h8v6' fill='none' stroke='%237c8cff' stroke-width='2'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#eceef2;
+  --surface:#ffffff;
+  --surface-2:#f6f7fa;
+  --ink:#1c2030;
+  --ink-2:#5b6376;
+  --line:#dde1e9;
+  --brand:#4c5bd4;
+  --brand-soft:#eceefe;
+  --wall:#4a5163;
+  --danger:#d1435b;
+  --radius:12px;
+  --topbar-h:52px;
+  --shadow:0 6px 24px rgba(20,26,45,.12);
+  --safe-b:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  overflow:hidden;-webkit-tap-highlight-color:transparent;
+}
+button,input,select{font:inherit;color:inherit}
+.grow{flex:1}
+.muted{color:var(--ink-2)}
+.small{font-size:12.5px}
+hr{border:0;border-top:1px solid var(--line);margin:6px 0}
+
+/* ---------- topbar ---------- */
+.topbar{
+  height:var(--topbar-h);display:flex;align-items:center;gap:8px;
+  padding:0 8px;background:var(--surface);border-bottom:1px solid var(--line);
+  position:relative;z-index:40;
+}
+.brand{font-weight:600;letter-spacing:-.2px;white-space:nowrap}
+.brand b{color:var(--brand);font-weight:700}
+.proj-name{
+  background:none;border:0;padding:4px 8px;border-radius:8px;cursor:pointer;
+  max-width:36vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2);
+}
+.proj-name:hover{background:var(--surface-2)}
+.proj-total{font-size:12.5px;color:var(--ink-2);white-space:nowrap}
+.icon-btn{
+  width:36px;height:36px;flex:0 0 36px;display:grid;place-items:center;
+  background:var(--surface-2);border:1px solid var(--line);border-radius:10px;cursor:pointer;
+  font-size:16px;line-height:1;
+}
+.icon-btn:active{background:#e7eaf1}
+.icon-btn[disabled]{opacity:.4;cursor:default}
+.menu-wrap{position:relative}
+.menu{
+  position:absolute;right:0;top:42px;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--radius);box-shadow:var(--shadow);padding:6px;min-width:230px;z-index:60;
+}
+.menu button{
+  display:block;width:100%;text-align:left;background:none;border:0;padding:10px 12px;
+  border-radius:8px;cursor:pointer;font-size:14px;
+}
+.menu button:hover{background:var(--surface-2)}
+.menu .danger{color:var(--danger)}
+
+/* ---------- layout ---------- */
+.layout{display:flex;height:calc(100% - var(--topbar-h));position:relative}
+.stage{position:relative;flex:1;min-width:0;background:var(--bg);touch-action:none;overflow:hidden}
+#plan{display:block;width:100%;height:100%;touch-action:none}
+
+.stage-head{position:absolute;top:10px;left:10px;right:10px;display:flex;gap:8px;pointer-events:none}
+.area-chip{
+  background:var(--surface);border:1px solid var(--line);border-radius:999px;
+  padding:6px 12px;font-size:13px;box-shadow:var(--shadow);max-width:100%;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.toolbar{
+  position:absolute;left:10px;bottom:calc(14px + var(--safe-b));display:flex;gap:6px;
+  background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:var(--shadow);
+}
+.tool{
+  display:flex;flex-direction:column;align-items:center;gap:2px;min-width:56px;
+  background:none;border:0;border-radius:10px;padding:7px 8px;cursor:pointer;color:var(--ink-2);
+}
+.tool .ico{font-size:16px;line-height:1}
+.tool .lbl{font-size:11px}
+.tool.is-active{background:var(--brand-soft);color:var(--brand);font-weight:600}
+.zoombar{
+  position:absolute;right:10px;bottom:calc(14px + var(--safe-b));display:flex;flex-direction:column;gap:6px;
+}
+.zoombar .icon-btn{background:var(--surface);box-shadow:var(--shadow)}
+.hint{
+  position:absolute;left:50%;transform:translateX(-50%);bottom:calc(84px + var(--safe-b));
+  background:rgba(28,32,48,.9);color:#fff;padding:7px 13px;border-radius:999px;font-size:12.5px;
+  pointer-events:none;max-width:90%;text-align:center;
+}
+
+/* ---------- panel ---------- */
+.panel{
+  width:330px;flex:0 0 330px;background:var(--surface);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;min-height:0;z-index:30;
+}
+.sheet-grip{display:none}
+.tabs{display:flex;gap:4px;padding:8px;border-bottom:1px solid var(--line)}
+.tab{
+  flex:1;background:none;border:0;padding:9px 6px;border-radius:9px;cursor:pointer;
+  color:var(--ink-2);font-size:14px;
+}
+.tab.is-active{background:var(--brand-soft);color:var(--brand);font-weight:600}
+.pane{display:none;padding:12px;overflow:auto;flex:1;min-height:0;-webkit-overflow-scrolling:touch}
+.pane.is-active{display:block}
+
+.btn{
+  background:var(--surface-2);border:1px solid var(--line);border-radius:10px;
+  padding:10px 14px;cursor:pointer;font-size:14px;
+}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600}
+.btn-danger{background:var(--danger);border-color:var(--danger);color:#fff;font-weight:600}
+.btn.block{display:block;width:100%;margin-bottom:12px;text-align:center}
+.btn.ghost{background:none}
+
+.area-list{list-style:none;margin:0 0 12px;padding:0;display:flex;flex-direction:column;gap:8px}
+.area-item{
+  display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:var(--radius);
+  padding:10px;cursor:pointer;background:var(--surface);
+}
+.area-item.is-active{border-color:var(--brand);background:var(--brand-soft)}
+.area-swatch{width:12px;height:34px;border-radius:4px;flex:0 0 12px}
+.area-info{flex:1;min-width:0}
+.area-info b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.area-info span{font-size:12.5px;color:var(--ink-2)}
+.area-acts{display:flex;gap:4px}
+.mini{
+  width:30px;height:30px;border:1px solid var(--line);background:var(--surface);border-radius:8px;
+  cursor:pointer;display:grid;place-items:center;font-size:13px;
+}
+
+.catalog{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.cat-item{
+  border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:9px;
+  cursor:pointer;text-align:left;
+}
+.cat-item b{display:block;font-size:13px;font-weight:600}
+.cat-item span{font-size:11.5px;color:var(--ink-2)}
+.cat-item i{display:block;height:4px;border-radius:2px;margin-bottom:6px;background:var(--brand)}
+
+.field{margin-bottom:12px}
+.field label{display:block;font-size:12.5px;color:var(--ink-2);margin-bottom:4px}
+.field input,.field select{
+  width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);
+}
+.field input[type=color]{padding:4px;height:42px}
+.field input:focus,.field select:focus{outline:2px solid var(--brand-soft);border-color:var(--brand)}
+.row{display:flex;gap:10px}
+.row .field{flex:1;min-width:0}
+.empty{padding:22px 10px;text-align:center;color:var(--ink-2);font-size:14px}
+.err{color:var(--danger);font-size:13px;margin:0 0 10px}
+.prop-head{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.prop-head .badge{
+  font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--brand);
+  background:var(--brand-soft);padding:3px 8px;border-radius:999px;
+}
+.prop-actions{display:flex;gap:8px;flex-wrap:wrap}
+.item-list{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.item-row{
+  display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);
+  border-radius:10px;cursor:pointer;font-size:13.5px;background:var(--surface);
+}
+.item-row.is-active{border-color:var(--brand);background:var(--brand-soft)}
+.item-row .dot{width:10px;height:10px;border-radius:3px;flex:0 0 10px}
+.item-row .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item-row .sz{color:var(--ink-2);font-size:12px}
+
+/* ---------- dialogs ---------- */
+.dlg{
+  border:0;border-radius:16px;padding:0;width:min(420px,92vw);box-shadow:var(--shadow);
+  background:var(--surface);color:var(--ink);
+}
+.dlg::backdrop{background:rgba(18,22,35,.45)}
+.dlg form{padding:18px}
+.dlg h2{margin:0 0 14px;font-size:18px}
+.dlg-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:6px}
+
+.toast{
+  position:fixed;left:50%;bottom:calc(24px + var(--safe-b));transform:translateX(-50%);
+  background:#1c2030;color:#fff;padding:10px 16px;border-radius:999px;font-size:13.5px;z-index:100;
+  box-shadow:var(--shadow);
+}
+.mobile-only{display:none}
+
+/* ---------- mobile ---------- */
+@media (max-width:820px){
+  .mobile-only{display:grid}
+  .layout{display:block}
+  .stage{position:absolute;inset:0;top:var(--topbar-h)}
+  .proj-name{max-width:28vw}
+  .proj-total{display:none}
+  .panel{
+    position:fixed;left:0;right:0;bottom:0;width:auto;flex:none;height:min(66vh,520px);
+    border-right:0;border-top:1px solid var(--line);border-radius:18px 18px 0 0;
+    box-shadow:0 -8px 30px rgba(20,26,45,.18);
+    transform:translateY(calc(100% - 0px));transition:transform .22s ease;
+    padding-bottom:var(--safe-b);
+  }
+  .panel.is-open{transform:translateY(0)}
+  .sheet-grip{
+    display:block;width:44px;height:5px;border-radius:3px;background:var(--line);
+    margin:9px auto 3px;flex:0 0 auto;
+  }
+  .toolbar{bottom:calc(14px + var(--safe-b))}
+  .tool{min-width:52px}
+  .catalog{grid-template-columns:1fr 1fr}
+}
+@media (max-width:380px){
+  .brand{display:none}
+}
+</style>
+<header class="topbar">
+  <button class="icon-btn mobile-only" id="btnPanel" aria-label="Abrir painel">☰</button>
+  <div class="brand">Planta<b>Baixa</b></div>
+  <button class="proj-name" id="btnRename" title="Renomear projeto"><span id="projName">Meu apartamento</span></button>
+  <span class="proj-total" id="projTotal">—</span>
+  <div class="grow"></div>
+  <button class="icon-btn" id="btnUndo" title="Desfazer" aria-label="Desfazer">↶</button>
+  <button class="icon-btn" id="btnRedo" title="Refazer" aria-label="Refazer">↷</button>
+  <div class="menu-wrap">
+    <button class="icon-btn" id="btnMore" aria-label="Mais opções">⋯</button>
+    <div class="menu" id="moreMenu" hidden>
+      <button data-act="png">Salvar imagem (PNG)</button>
+      <button data-act="export">Exportar projeto (.json)</button>
+      <button data-act="import">Importar projeto</button>
+      <hr>
+      <button data-act="reset" class="danger">Começar do zero</button>
+    </div>
+  </div>
+</header>
+
+<main class="layout">
+  <aside class="panel" id="panel" aria-label="Painel">
+    <div class="sheet-grip" id="sheetGrip"></div>
+    <nav class="tabs" role="tablist">
+      <button class="tab is-active" data-tab="areas" role="tab">Áreas</button>
+      <button class="tab" data-tab="add" role="tab">Adicionar</button>
+      <button class="tab" data-tab="props" role="tab">Item</button>
+    </nav>
+
+    <div class="pane is-active" id="pane-areas">
+      <button class="btn btn-primary block" id="btnNewArea">+ Nova área</button>
+      <ul class="area-list" id="areaList"></ul>
+      <p class="muted small">Toque numa área para editá-la. O desenho é sempre feito em escala real: 1 metro no desenho = 1 metro no apartamento.</p>
+    </div>
+
+    <div class="pane" id="pane-add">
+      <div class="field">
+        <label for="catFilter">Categoria</label>
+        <select id="catFilter"></select>
+      </div>
+      <div class="catalog" id="catalog"></div>
+      <button class="btn block" id="btnCustomItem">+ Móvel com medida própria</button>
+      <p class="muted small">O móvel entra no centro da tela com as medidas reais. Arraste para posicionar, use a alça do canto para redimensionar e a alça de cima para girar.</p>
+    </div>
+
+    <div class="pane" id="pane-props">
+      <div id="propsEmpty" class="empty">Nenhum item selecionado.<br><span class="muted small">Toque num móvel, linha, porta ou janela da planta.</span></div>
+      <div id="propsForm" hidden></div>
+    </div>
+  </aside>
+
+  <section class="stage" id="stage">
+    <canvas id="plan"></canvas>
+
+    <div class="stage-head">
+      <div class="area-chip" id="areaChip">—</div>
+    </div>
+
+    <div class="toolbar" id="toolbar">
+      <button class="tool is-active" data-tool="select" title="Selecionar / mover">
+        <span class="ico">⬉</span><span class="lbl">Mover</span>
+      </button>
+      <button class="tool" data-tool="line" title="Desenhar linha em escala">
+        <span class="ico">╱</span><span class="lbl">Linha</span>
+      </button>
+      <button class="tool" data-tool="door" title="Adicionar porta">
+        <span class="ico">⌐</span><span class="lbl">Porta</span>
+      </button>
+      <button class="tool" data-tool="window" title="Adicionar janela">
+        <span class="ico">▭</span><span class="lbl">Janela</span>
+      </button>
+    </div>
+
+    <div class="zoombar">
+      <button class="icon-btn" id="btnZoomIn" aria-label="Aproximar">+</button>
+      <button class="icon-btn" id="btnZoomOut" aria-label="Afastar">−</button>
+      <button class="icon-btn" id="btnFit" aria-label="Enquadrar">⤢</button>
+    </div>
+
+    <div class="hint" id="hint" hidden></div>
+  </section>
+</main>
+
+<dialog class="dlg" id="areaDlg">
+  <form method="dialog" id="areaForm">
+    <h2 id="areaDlgTitle">Nova área</h2>
+    <div class="field">
+      <label for="aName">Nome da área</label>
+      <input id="aName" name="name" required placeholder="Quarto, Sala, Cozinha…" autocomplete="off">
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="aW">Largura (m)</label>
+        <input id="aW" name="w" inputmode="decimal" required placeholder="2,56">
+      </div>
+      <div class="field">
+        <label for="aH">Profundidade (m)</label>
+        <input id="aH" name="h" inputmode="decimal" required placeholder="3,61">
+      </div>
+    </div>
+    <p class="muted small">Use as medidas <b>internas</b> (de parede a parede, por dentro).</p>
+    <div class="row">
+      <div class="field">
+        <label for="aT">Parede (cm)</label>
+        <input id="aT" name="t" inputmode="decimal" value="10">
+      </div>
+      <div class="field">
+        <label for="aColor">Cor</label>
+        <input id="aColor" name="color" type="color" value="#7c8cff">
+      </div>
+    </div>
+    <p class="err" id="areaErr" hidden></p>
+    <div class="dlg-actions">
+      <button class="btn" value="cancel" formnovalidate>Cancelar</button>
+      <button class="btn btn-primary" value="ok" id="areaOk">Salvar</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="dlg" id="itemDlg">
+  <form method="dialog" id="itemForm">
+    <h2>Móvel com medida própria</h2>
+    <div class="field">
+      <label for="iName">Nome</label>
+      <input id="iName" required placeholder="Ex.: Guarda-roupa" autocomplete="off">
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="iW">Largura (m)</label>
+        <input id="iW" inputmode="decimal" required placeholder="1,50">
+      </div>
+      <div class="field">
+        <label for="iH">Profundidade (m)</label>
+        <input id="iH" inputmode="decimal" required placeholder="0,60">
+      </div>
+    </div>
+    <div class="dlg-actions">
+      <button class="btn" value="cancel" formnovalidate>Cancelar</button>
+      <button class="btn btn-primary" value="ok">Adicionar</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="dlg" id="confirmDlg">
+  <form method="dialog">
+    <h2 id="confirmTitle">Confirmar</h2>
+    <p id="confirmText" class="muted"></p>
+    <div class="dlg-actions">
+      <button class="btn" value="cancel">Cancelar</button>
+      <button class="btn btn-danger" value="ok">Confirmar</button>
+    </div>
+  </form>
+</dialog>
+
+<input type="file" id="fileInput" accept="application/json,.json" hidden>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+/* Utilitários de geometria e formatação (todas as medidas em METROS). */
+window.App = window.App || {};
+
+App.geo = (function () {
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const snap = (v, step) => Math.round(v / step) * step;
+  const d2r = (d) => (d * Math.PI) / 180;
+  const r2d = (r) => (r * 180) / Math.PI;
+
+  /* Gira (px,py) em torno de (cx,cy). ang em graus. */
+  function rot(px, py, cx, cy, ang) {
+    const a = d2r(ang), s = Math.sin(a), c = Math.cos(a);
+    const dx = px - cx, dy = py - cy;
+    return { x: cx + dx * c - dy * s, y: cy + dx * s + dy * c };
+  }
+
+  /* Leva um ponto do mundo para o sistema local do item (centro na origem). */
+  function toLocal(x, y, item) {
+    return rot(x, y, item.x, item.y, -(item.rot || 0));
+  }
+
+  function corners(item) {
+    const hw = item.w / 2, hh = item.h / 2;
+    return [
+      [-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh],
+    ].map(([lx, ly]) => rot(item.x + lx, item.y + ly, item.x, item.y, item.rot || 0));
+  }
+
+  function pointInRect(x, y, item, pad) {
+    pad = pad || 0;
+    const p = toLocal(x, y, item);
+    return Math.abs(p.x - item.x) <= item.w / 2 + pad &&
+           Math.abs(p.y - item.y) <= item.h / 2 + pad;
+  }
+
+  function distToSegment(px, py, x1, y1, x2, y2) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const len2 = dx * dx + dy * dy;
+    let t = len2 === 0 ? 0 : ((px - x1) * dx + (py - y1) * dy) / len2;
+    t = clamp(t, 0, 1);
+    const qx = x1 + t * dx, qy = y1 + t * dy;
+    return Math.hypot(px - qx, py - qy);
+  }
+
+  /* Bounding box (em metros) de um item, já rotacionado. */
+  function bbox(item) {
+    if (item.type === 'line') {
+      return {
+        x1: Math.min(item.x1, item.x2), y1: Math.min(item.y1, item.y2),
+        x2: Math.max(item.x1, item.x2), y2: Math.max(item.y1, item.y2),
+      };
+    }
+    const cs = corners(item);
+    return {
+      x1: Math.min(...cs.map((c) => c.x)), y1: Math.min(...cs.map((c) => c.y)),
+      x2: Math.max(...cs.map((c) => c.x)), y2: Math.max(...cs.map((c) => c.y)),
+    };
+  }
+
+  /* --- formatação pt-BR --- */
+  function num(v, casas) {
+    casas = casas == null ? 2 : casas;
+    return v.toFixed(casas).replace('.', ',');
+  }
+  const m = (v) => num(v, 2) + ' m';
+  const m2 = (v) => num(v, 2) + ' m²';
+
+  /* Aceita "2,56", "2.56", "256" (cm não — sempre metros). */
+  function parseNum(str) {
+    if (typeof str === 'number') return str;
+    const v = parseFloat(String(str).trim().replace(',', '.'));
+    return Number.isFinite(v) ? v : NaN;
+  }
+
+  return { clamp, snap, d2r, r2d, rot, toLocal, corners, pointInRect, distToSegment, bbox, num, m, m2, parseNum };
+})();
+</script>
+<script>
+/* Catálogo de móveis com medidas reais (metros). w = largura, h = profundidade. */
+window.App = window.App || {};
+
+App.presets = (function () {
+  const cores = {
+    'Quarto': '#c8d3f5',
+    'Sala': '#cfe6d8',
+    'Cozinha': '#f7dcc4',
+    'Banheiro': '#cfe6ef',
+    'Escritório': '#e3d5f2',
+    'Geral': '#e2e5ec',
+  };
+
+  const itens = [
+    // Quarto
+    ['Quarto', 'Cama solteiro', 0.88, 1.88],
+    ['Quarto', 'Cama solteirão', 0.96, 2.03],
+    ['Quarto', 'Cama casal', 1.38, 1.88],
+    ['Quarto', 'Cama queen', 1.58, 1.98],
+    ['Quarto', 'Cama king', 1.93, 2.03],
+    ['Quarto', 'Berço', 0.70, 1.30],
+    ['Quarto', 'Criado-mudo', 0.50, 0.40],
+    ['Quarto', 'Guarda-roupa 2p', 1.00, 0.55],
+    ['Quarto', 'Guarda-roupa 3p', 1.50, 0.60],
+    ['Quarto', 'Guarda-roupa 6p', 2.20, 0.60],
+    ['Quarto', 'Cômoda', 0.90, 0.45],
+    ['Quarto', 'Penteadeira', 0.90, 0.40],
+    // Sala
+    ['Sala', 'Sofá 2 lugares', 1.60, 0.85],
+    ['Sala', 'Sofá 3 lugares', 2.00, 0.90],
+    ['Sala', 'Sofá retrátil', 2.20, 1.10],
+    ['Sala', 'Poltrona', 0.80, 0.80],
+    ['Sala', 'Rack de TV', 1.80, 0.40],
+    ['Sala', 'Mesa de centro', 1.00, 0.60],
+    ['Sala', 'Estante', 0.80, 0.35],
+    ['Sala', 'Mesa jantar 4 lug.', 1.20, 0.80],
+    ['Sala', 'Mesa jantar 6 lug.', 1.60, 0.90],
+    ['Sala', 'Cadeira', 0.45, 0.45],
+    // Cozinha
+    ['Cozinha', 'Geladeira', 0.70, 0.70],
+    ['Cozinha', 'Fogão 4 bocas', 0.55, 0.60],
+    ['Cozinha', 'Fogão 5 bocas', 0.76, 0.65],
+    ['Cozinha', 'Bancada / pia', 1.20, 0.60],
+    ['Cozinha', 'Armário aéreo', 1.20, 0.35],
+    ['Cozinha', 'Micro-ondas', 0.50, 0.40],
+    ['Cozinha', 'Máquina de lavar', 0.60, 0.65],
+    ['Cozinha', 'Mesa pequena', 0.80, 0.80],
+    // Banheiro
+    ['Banheiro', 'Vaso sanitário', 0.38, 0.68],
+    ['Banheiro', 'Pia / gabinete', 0.60, 0.45],
+    ['Banheiro', 'Box', 0.90, 0.90],
+    ['Banheiro', 'Banheira', 1.70, 0.75],
+    ['Banheiro', 'Tanque', 0.55, 0.50],
+    // Escritório
+    ['Escritório', 'Escrivaninha', 1.20, 0.60],
+    ['Escritório', 'Mesa em L', 1.50, 1.50],
+    ['Escritório', 'Cadeira de escritório', 0.60, 0.60],
+    ['Escritório', 'Armário baixo', 0.80, 0.40],
+    // Geral
+    ['Geral', 'Ar-condicionado', 0.90, 0.25],
+    ['Geral', 'Espelho', 0.60, 0.10],
+    ['Geral', 'Tapete', 2.00, 1.40],
+    ['Geral', 'Caixa / volume', 0.50, 0.50],
+  ].map(([cat, nome, w, h]) => ({ cat, nome, w, h, cor: cores[cat] }));
+
+  const categorias = ['Todos'].concat([...new Set(itens.map((i) => i.cat))]);
+
+  return { itens, categorias, cores };
+})();
+</script>
+<script>
+/* Estado do projeto + persistência (localStorage) + desfazer/refazer. */
+window.App = window.App || {};
+
+App.Store = (function () {
+  const KEY = 'plantabaixa.v1';
+  const MAX_HIST = 60;
+
+  const uid = () => Math.random().toString(36).slice(2, 10);
+
+  function projetoExemplo() {
+    const area = {
+      id: uid(),
+      name: 'Quarto',
+      w: 2.56, h: 3.61, wall: 0.10,
+      color: '#7c8cff',
+      items: [
+        { id: uid(), type: 'opening', kind: 'janela', wall: 'top', pos: 0.75, width: 1.00 },
+        { id: uid(), type: 'opening', kind: 'porta', wall: 'right', pos: 2.55, width: 0.80, flip: false },
+      ],
+    };
+    return { version: 1, name: 'Meu apartamento', areas: [area], activeId: area.id };
+  }
+
+  function normalizeArea(a) {
+    a.id = a.id || uid();
+    a.name = a.name || 'Área';
+    a.w = +a.w || 3; a.h = +a.h || 3;
+    a.wall = a.wall == null ? 0.10 : +a.wall;
+    a.color = a.color || '#7c8cff';
+    a.items = Array.isArray(a.items) ? a.items : [];
+    a.items.forEach((i) => { i.id = i.id || uid(); });
+    return a;
+  }
+
+  function normalize(p) {
+    if (!p || typeof p !== 'object') return projetoExemplo();
+    const out = {
+      version: 1,
+      name: p.name || 'Meu apartamento',
+      areas: (Array.isArray(p.areas) ? p.areas : []).map(normalizeArea),
+      activeId: p.activeId || null,
+    };
+    if (!out.areas.length) return Object.assign(out, { areas: projetoExemplo().areas });
+    if (!out.areas.some((a) => a.id === out.activeId)) out.activeId = out.areas[0].id;
+    return out;
+  }
+
+  let project = null;
+  let past = [], future = [], txSnapshot = null;
+  const listeners = new Set();
+
+  function snap() { return JSON.stringify(project); }
+
+  function persist() {
+    try { localStorage.setItem(KEY, snap()); } catch (e) { /* modo privado / cota */ }
+  }
+
+  function notify() { listeners.forEach((fn) => fn(project)); }
+
+  function load() {
+    let raw = null;
+    try { raw = localStorage.getItem(KEY); } catch (e) { /* ignore */ }
+    if (raw) {
+      try { project = normalize(JSON.parse(raw)); } catch (e) { project = projetoExemplo(); }
+    } else {
+      project = projetoExemplo();
+    }
+    past = []; future = [];
+    persist();
+    return project;
+  }
+
+  function pushHistory(before) {
+    past.push(before);
+    if (past.length > MAX_HIST) past.shift();
+    future.length = 0;
+  }
+
+  /* Mutação normal: entra no histórico. */
+  function update(fn) {
+    const before = snap();
+    fn(project);
+    if (snap() === before) return project;
+    pushHistory(before);
+    persist(); notify();
+    return project;
+  }
+
+  /* Mutações contínuas (arrastar): agrupa tudo num único passo de histórico. */
+  function begin() { txSnapshot = snap(); }
+  function live(fn) { fn(project); persist(); notify(); }
+  function commit() {
+    if (txSnapshot == null) return;
+    if (snap() !== txSnapshot) pushHistory(txSnapshot);
+    txSnapshot = null;
+    persist(); notify();
+  }
+  function cancelTx() { txSnapshot = null; }
+
+  function undo() {
+    if (!past.length) return;
+    future.push(snap());
+    project = normalize(JSON.parse(past.pop()));
+    persist(); notify();
+  }
+  function redo() {
+    if (!future.length) return;
+    past.push(snap());
+    project = normalize(JSON.parse(future.pop()));
+    persist(); notify();
+  }
+
+  function replace(p) {
+    const before = snap();
+    project = normalize(p);
+    pushHistory(before);
+    persist(); notify();
+  }
+
+  const get = () => project;
+  const activeArea = () => project.areas.find((a) => a.id === project.activeId) || project.areas[0];
+  const findItem = (id) => { const a = activeArea(); return a && a.items.find((i) => i.id === id); };
+  const totalArea = () => project.areas.reduce((s, a) => s + a.w * a.h, 0);
+
+  function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
+
+  return {
+    uid, load, get, update, begin, live, commit, cancelTx, undo, redo, replace,
+    subscribe, activeArea, findItem, totalArea, projetoExemplo,
+    canUndo: () => past.length > 0,
+    canRedo: () => future.length > 0,
+  };
+})();
+</script>
+<script>
+/* Desenho da planta no canvas 2D. Mundo em metros, tela em pixels CSS. */
+window.App = window.App || {};
+
+App.render = (function () {
+  const G = App.geo;
+
+  const C = {
+    bg: '#eceef2',
+    floor: '#fbfbfd',
+    wall: '#4a5163',
+    wallEdge: '#2f3542',
+    gridMinor: '#e4e8f0',
+    gridMajor: '#d3d9e6',
+    dim: '#8a91a3',
+    dimInner: '#9aa2f0',
+    brand: '#4c5bd4',
+    ink: '#1c2030',
+    line: '#3b49c4',
+  };
+
+  /* Geometria de uma abertura (porta/janela) na parede. */
+  function openingGeom(area, it) {
+    const W = area.w, H = area.h, t = area.wall;
+    const run = (it.wall === 'top' || it.wall === 'bottom') ? W : H;
+    const width = G.clamp(it.width, 0.2, run);
+    const pos = G.clamp(it.pos, 0, run - width);
+    let o, u, n;
+    if (it.wall === 'top')         { o = { x: 0, y: 0 }; u = { x: 1, y: 0 }; n = { x: 0, y: 1 }; }
+    else if (it.wall === 'bottom') { o = { x: 0, y: H }; u = { x: 1, y: 0 }; n = { x: 0, y: -1 }; }
+    else if (it.wall === 'left')   { o = { x: 0, y: 0 }; u = { x: 0, y: 1 }; n = { x: 1, y: 0 }; }
+    else                           { o = { x: W, y: 0 }; u = { x: 0, y: 1 }; n = { x: -1, y: 0 }; }
+    const a = { x: o.x + u.x * pos, y: o.y + u.y * pos };
+    const b = { x: a.x + u.x * width, y: a.y + u.y * width };
+    // retângulo do vão dentro da faixa de parede
+    const rect = {
+      x1: Math.min(a.x, b.x), y1: Math.min(a.y, b.y),
+      x2: Math.max(a.x, b.x), y2: Math.max(a.y, b.y),
+    };
+    if (it.wall === 'top')    { rect.y1 = -t; rect.y2 = 0; }
+    if (it.wall === 'bottom') { rect.y1 = H;  rect.y2 = H + t; }
+    if (it.wall === 'left')   { rect.x1 = -t; rect.x2 = 0; }
+    if (it.wall === 'right')  { rect.x1 = W;  rect.x2 = W + t; }
+    return { a, b, u, n, rect, width, pos, run };
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    r = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function pill(ctx, text, sx, sy, color, bg) {
+    ctx.font = '600 11px -apple-system,Segoe UI,Roboto,sans-serif';
+    const w = ctx.measureText(text).width + 10;
+    ctx.fillStyle = bg || 'rgba(255,255,255,.92)';
+    roundRect(ctx, sx - w / 2, sy - 9, w, 18, 9);
+    ctx.fill();
+    ctx.fillStyle = color || C.ink;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(text, sx, sy + .5);
+  }
+
+  /* Cota com setas entre dois pontos de tela. */
+  function dimension(ctx, x1, y1, x2, y2, label, color) {
+    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    const ang = Math.atan2(y2 - y1, x2 - x1);
+    [[x1, y1, ang], [x2, y2, ang + Math.PI]].forEach(([x, y, a]) => {
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + Math.cos(a - .35) * 8, y + Math.sin(a - .35) * 8);
+      ctx.lineTo(x + Math.cos(a + .35) * 8, y + Math.sin(a + .35) * 8);
+      ctx.closePath(); ctx.fill();
+    });
+    pill(ctx, label, (x1 + x2) / 2, (y1 + y2) / 2, color, 'rgba(236,238,242,.95)');
+  }
+
+  function drawGrid(ctx, v, W, H) {
+    let step = 1;
+    if (v.scale * 0.5 >= 14) step = 0.5;
+    if (v.scale * 0.25 >= 22) step = 0.25;
+    const x0 = Math.floor((-v.ox / v.scale) / step) * step;
+    const x1 = (W - v.ox) / v.scale;
+    const y0 = Math.floor((-v.oy / v.scale) / step) * step;
+    const y1 = (H - v.oy) / v.scale;
+    if ((x1 - x0) / step > 400 || (y1 - y0) / step > 400) return;
+    ctx.lineWidth = 1;
+    for (let x = x0; x <= x1; x += step) {
+      const major = Math.abs(x / 1 - Math.round(x / 1)) < 1e-6;
+      ctx.strokeStyle = major ? C.gridMajor : C.gridMinor;
+      const sx = Math.round(x * v.scale + v.ox) + .5;
+      ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, H); ctx.stroke();
+    }
+    for (let y = y0; y <= y1; y += step) {
+      const major = Math.abs(y / 1 - Math.round(y / 1)) < 1e-6;
+      ctx.strokeStyle = major ? C.gridMajor : C.gridMinor;
+      const sy = Math.round(y * v.scale + v.oy) + .5;
+      ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(W, sy); ctx.stroke();
+    }
+  }
+
+  function drawWalls(ctx, area, v, X, Y) {
+    const t = area.wall;
+    ctx.fillStyle = C.wall;
+    ctx.beginPath();
+    ctx.rect(X(-t), Y(-t), (area.w + 2 * t) * v.scale, (area.h + 2 * t) * v.scale);
+    ctx.rect(X(0), Y(0), area.w * v.scale, area.h * v.scale);
+    ctx.fill('evenodd');
+    ctx.strokeStyle = C.wallEdge; ctx.lineWidth = 1;
+    ctx.strokeRect(X(-t) + .5, Y(-t) + .5, (area.w + 2 * t) * v.scale, (area.h + 2 * t) * v.scale);
+  }
+
+  function drawOpening(ctx, area, it, v, X, Y, selected) {
+    const g = openingGeom(area, it);
+    const sx = X(g.rect.x1), sy = Y(g.rect.y1);
+    const sw = (g.rect.x2 - g.rect.x1) * v.scale, sh = (g.rect.y2 - g.rect.y1) * v.scale;
+    ctx.fillStyle = C.floor;
+    ctx.fillRect(sx, sy, sw, sh);
+    ctx.strokeStyle = C.wallEdge; ctx.lineWidth = 1;
+    ctx.strokeRect(sx + .5, sy + .5, sw - 1, sh - 1);
+
+    if (it.kind === 'janela') {
+      ctx.strokeStyle = '#6b8fd6'; ctx.lineWidth = 2;
+      const off = { x: g.n.x * area.wall / 2, y: g.n.y * area.wall / 2 };
+      ctx.beginPath();
+      ctx.moveTo(X(g.a.x + off.x), Y(g.a.y + off.y));
+      ctx.lineTo(X(g.b.x + off.x), Y(g.b.y + off.y));
+      ctx.stroke();
+    } else {
+      const hinge = it.flip ? g.b : g.a;
+      const dir = it.flip ? { x: -g.u.x, y: -g.u.y } : g.u;
+      const leaf = { x: hinge.x + dir.x * g.width, y: hinge.y + dir.y * g.width };
+      const open = { x: hinge.x + g.n.x * g.width, y: hinge.y + g.n.y * g.width };
+      ctx.strokeStyle = '#8a91a3'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(X(hinge.x), Y(hinge.y)); ctx.lineTo(X(open.x), Y(open.y)); ctx.stroke();
+      const a0 = Math.atan2(leaf.y - hinge.y, leaf.x - hinge.x);
+      const a1 = Math.atan2(open.y - hinge.y, open.x - hinge.x);
+      let d = a1 - a0;
+      while (d > Math.PI) d -= 2 * Math.PI;
+      while (d < -Math.PI) d += 2 * Math.PI;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.arc(X(hinge.x), Y(hinge.y), g.width * v.scale, a0, a1, d < 0);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    if (selected) {
+      ctx.strokeStyle = C.brand; ctx.lineWidth = 2;
+      ctx.strokeRect(sx - 2, sy - 2, sw + 4, sh + 4);
+      const mid = { x: (g.a.x + g.b.x) / 2, y: (g.a.y + g.b.y) / 2 };
+      pill(ctx, G.m(g.width), X(mid.x + g.n.x * 0.35), Y(mid.y + g.n.y * 0.35), C.brand);
+    }
+  }
+
+  function drawFurniture(ctx, it, v, X, Y, selected) {
+    const sw = it.w * v.scale, sh = it.h * v.scale;
+    ctx.save();
+    ctx.translate(X(it.x), Y(it.y));
+    ctx.rotate(G.d2r(it.rot || 0));
+    roundRect(ctx, -sw / 2, -sh / 2, sw, sh, Math.min(6, sw / 6, sh / 6));
+    ctx.fillStyle = it.color || '#e2e5ec';
+    ctx.fill();
+    ctx.strokeStyle = selected ? C.brand : 'rgba(40,46,66,.55)';
+    ctx.lineWidth = selected ? 2 : 1.2;
+    ctx.stroke();
+
+    // rótulo (mantido legível: nunca de cabeça para baixo)
+    let a = ((it.rot || 0) % 180 + 180) % 180;
+    if (a > 90) a -= 180;
+    ctx.rotate(G.d2r(a - (it.rot || 0)));
+    const label = it.name || 'Móvel';
+    const dims = G.num(it.w) + ' × ' + G.num(it.h) + ' m';
+    const boxW = Math.abs(Math.cos(G.d2r(a))) > .7 ? sw : sh;
+    const boxH = Math.abs(Math.cos(G.d2r(a))) > .7 ? sh : sw;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(28,32,48,.85)';
+    if (boxW > 46 && boxH > 26) {
+      ctx.font = '600 11px -apple-system,Segoe UI,Roboto,sans-serif';
+      ctx.fillText(label, 0, boxH > 40 ? -6 : 0, boxW - 8);
+      if (boxH > 40) {
+        ctx.font = '10px -apple-system,Segoe UI,Roboto,sans-serif';
+        ctx.fillStyle = 'rgba(28,32,48,.55)';
+        ctx.fillText(dims, 0, 8, boxW - 8);
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawLine(ctx, it, v, X, Y, selected) {
+    const x1 = X(it.x1), y1 = Y(it.y1), x2 = X(it.x2), y2 = Y(it.y2);
+    ctx.strokeStyle = selected ? C.brand : (it.color || C.line);
+    ctx.lineWidth = selected ? 3 : 2;
+    ctx.setLineDash([7, 5]);
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = ctx.strokeStyle;
+    [[x1, y1], [x2, y2]].forEach(([x, y]) => {
+      ctx.beginPath(); ctx.arc(x, y, selected ? 5 : 3.5, 0, 7); ctx.fill();
+    });
+    const len = Math.hypot(it.x2 - it.x1, it.y2 - it.y1);
+    pill(ctx, G.m(len), (x1 + x2) / 2, (y1 + y2) / 2 - 14, C.line);
+  }
+
+  function drawHandles(ctx, handles) {
+    handles.forEach((h) => {
+      ctx.beginPath();
+      ctx.arc(h.sx, h.sy, h.r || 9, 0, 7);
+      ctx.fillStyle = '#fff'; ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = C.brand; ctx.stroke();
+      if (h.kind === 'rotate') {
+        ctx.fillStyle = C.brand;
+        ctx.font = '11px -apple-system,Segoe UI,Roboto,sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('⟳', h.sx, h.sy + .5);
+      }
+    });
+  }
+
+  function scaleBar(ctx, v, W) {
+    const candidates = [0.5, 1, 2, 5, 10];
+    let m = candidates.find((c) => c * v.scale >= 60) || 10;
+    const px = m * v.scale;
+    const x = W - px - 16, y = 22;
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + px, y); ctx.stroke();
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, y - 5); ctx.lineTo(x, y + 5);
+    ctx.moveTo(x + px, y - 5); ctx.lineTo(x + px, y + 5); ctx.stroke();
+    ctx.fillStyle = C.ink;
+    ctx.font = '11px -apple-system,Segoe UI,Roboto,sans-serif';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+    ctx.fillText(G.num(m, m < 1 ? 1 : 0) + ' m', x + px, y + 8);
+  }
+
+  /* Alças de manipulação do item selecionado (em coordenadas de tela). */
+  function handlesFor(area, it, v, X, Y) {
+    if (!it) return [];
+    if (it.type === 'line') {
+      return [
+        { kind: 'p1', sx: X(it.x1), sy: Y(it.y1) },
+        { kind: 'p2', sx: X(it.x2), sy: Y(it.y2) },
+      ];
+    }
+    if (it.type === 'opening') {
+      const g = openingGeom(area, it);
+      return [
+        { kind: 'o1', sx: X(g.a.x), sy: Y(g.a.y), r: 8 },
+        { kind: 'o2', sx: X(g.b.x), sy: Y(g.b.y), r: 8 },
+      ];
+    }
+    const cs = G.corners(it);
+    const hs = cs.map((c, i) => ({ kind: 'corner' + i, i, sx: X(c.x), sy: Y(c.y) }));
+    // alça de rotação acima do meio do lado superior
+    const mid = { x: (cs[0].x + cs[1].x) / 2, y: (cs[0].y + cs[1].y) / 2 };
+    const dir = G.rot(0, -1, 0, 0, it.rot || 0);
+    hs.push({ kind: 'rotate', sx: X(mid.x) + dir.x * 30, sy: Y(mid.y) + dir.y * 30 });
+    return hs;
+  }
+
+  function roomLabel(ctx, area, cx, cy) {
+    const nome = area.name, med = G.m2(area.w * area.h);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '600 15px -apple-system,Segoe UI,Roboto,sans-serif';
+    const w1 = ctx.measureText(nome).width;
+    ctx.font = '13px -apple-system,Segoe UI,Roboto,sans-serif';
+    const w2 = ctx.measureText(med).width;
+    const w = Math.max(w1, w2) + 22;
+    ctx.fillStyle = 'rgba(255,255,255,.78)';
+    roundRect(ctx, cx - w / 2, cy - 22, w, 44, 10);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(28,32,48,.55)';
+    ctx.font = '600 15px -apple-system,Segoe UI,Roboto,sans-serif';
+    ctx.fillText(nome, cx, cy - 9);
+    ctx.font = '13px -apple-system,Segoe UI,Roboto,sans-serif';
+    ctx.fillStyle = 'rgba(28,32,48,.45)';
+    ctx.fillText(med, cx, cy + 10);
+  }
+
+  function render(ctx, o) {
+    const { area, view: v, width: W, height: H } = o;
+    const X = (wx) => wx * v.scale + v.ox;
+    const Y = (wy) => wy * v.scale + v.oy;
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = o.exportMode ? '#ffffff' : C.bg;
+    ctx.fillRect(0, 0, W, H);
+    if (!area) return [];
+
+    if (!o.exportMode) drawGrid(ctx, v, W, H);
+
+    // piso
+    ctx.fillStyle = C.floor;
+    ctx.fillRect(X(0), Y(0), area.w * v.scale, area.h * v.scale);
+
+    drawWalls(ctx, area, v, X, Y);
+
+    const sel = o.selectedId;
+    area.items.filter((i) => i.type === 'furniture')
+      .forEach((i) => drawFurniture(ctx, i, v, X, Y, i.id === sel));
+    area.items.filter((i) => i.type === 'opening')
+      .forEach((i) => drawOpening(ctx, area, i, v, X, Y, i.id === sel));
+    area.items.filter((i) => i.type === 'line')
+      .forEach((i) => drawLine(ctx, i, v, X, Y, i.id === sel));
+
+    // nome + área do cômodo, sempre legível por cima dos móveis
+    roomLabel(ctx, area, X(area.w / 2), Y(area.h / 2));
+
+    // linha sendo desenhada
+    if (o.draft) {
+      drawLine(ctx, Object.assign({ type: 'line' }, o.draft), v, X, Y, true);
+    }
+
+    // cotas internas (largura em cima, profundidade à esquerda)
+    const t = area.wall;
+    dimension(ctx, X(0), Y(-t) - 26, X(area.w), Y(-t) - 26, G.m(area.w), C.dim);
+    dimension(ctx, X(-t) - 26, Y(0), X(-t) - 26, Y(area.h), G.m(area.h), C.dim);
+
+    let handles = [];
+    if (!o.exportMode) {
+      const selItem = area.items.find((i) => i.id === sel);
+      handles = handlesFor(area, selItem, v, X, Y);
+      drawHandles(ctx, handles);
+      scaleBar(ctx, v, W);
+    }
+    return handles;
+  }
+
+  render.openingGeom = openingGeom;
+  render.handlesFor = handlesFor;
+  return render;
+})();
+</script>
+<script>
+/* Canvas: transformação de vista, gestos (mouse + toque) e edição dos itens. */
+window.App = window.App || {};
+
+App.Editor = (function () {
+  const G = App.geo, S = App.Store;
+
+  const SNAP = 0.05;       // 5 cm
+  const WALL_SNAP = 0.12;  // encosta na parede
+  const ANG_SNAP = 15;     // graus
+
+  let canvas, ctx, stage;
+  let view = { scale: 100, ox: 0, oy: 0 };
+  let tool = 'select';
+  let selectedId = null;
+  let draft = null;
+  let handles = [];
+  let cssW = 0, cssH = 0;
+  let onChange = () => {};
+  let onHint = () => {};
+  let raf = 0;
+
+  const pointers = new Map();
+  let gesture = null;
+  let pinch = null;
+
+  const area = () => S.activeArea();
+  const toWorld = (sx, sy) => ({ x: (sx - view.ox) / view.scale, y: (sy - view.oy) / view.scale });
+
+  /* ---------- render loop ---------- */
+  function resize() {
+    const r = stage.getBoundingClientRect();
+    cssW = Math.max(1, r.width); cssH = Math.max(1, r.height);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+
+  function draw() {
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      raf = 0;
+      handles = App.render(ctx, {
+        area: area(), view, width: cssW, height: cssH,
+        selectedId, draft,
+      });
+    });
+  }
+
+  function fit(animate) {
+    const a = area();
+    if (!a || !cssW) return;
+    const pad = 70;
+    const w = a.w + 2 * a.wall, h = a.h + 2 * a.wall;
+    const s = Math.min((cssW - pad * 2) / w, (cssH - pad * 2) / h);
+    view.scale = G.clamp(s, 4, 600);
+    view.ox = cssW / 2 - (a.w / 2) * view.scale;
+    view.oy = cssH / 2 - (a.h / 2) * view.scale;
+    void animate;
+    draw();
+  }
+
+  function zoomAt(factor, sx, sy) {
+    const before = toWorld(sx, sy);
+    view.scale = G.clamp(view.scale * factor, 6, 800);
+    view.ox = sx - before.x * view.scale;
+    view.oy = sy - before.y * view.scale;
+    draw();
+  }
+
+  /* ---------- seleção ---------- */
+  function select(id) {
+    if (selectedId === id) return;
+    selectedId = id;
+    draw();
+    onChange();
+  }
+  const getSelected = () => { const a = area(); return a && a.items.find((i) => i.id === selectedId); };
+
+  function hitHandle(sx, sy) {
+    for (const h of handles) {
+      if (Math.hypot(sx - h.sx, sy - h.sy) <= (h.r || 9) + 8) return h;
+    }
+    return null;
+  }
+
+  function hitItem(wx, wy) {
+    const a = area();
+    if (!a) return null;
+    const tol = 12 / view.scale;
+    const ordered = a.items.slice().reverse();
+    for (const it of ordered) {
+      if (it.type === 'line' &&
+          G.distToSegment(wx, wy, it.x1, it.y1, it.x2, it.y2) <= tol) return it;
+    }
+    for (const it of ordered) {
+      if (it.type === 'furniture' && G.pointInRect(wx, wy, it, 0)) return it;
+    }
+    for (const it of ordered) {
+      if (it.type === 'opening') {
+        const g = App.render.openingGeom(a, it);
+        if (wx >= g.rect.x1 - tol && wx <= g.rect.x2 + tol &&
+            wy >= g.rect.y1 - tol && wy <= g.rect.y2 + tol) return it;
+      }
+    }
+    return null;
+  }
+
+  /* ---------- snapping ---------- */
+  function snapFurniture(it) {
+    it.x = G.snap(it.x, SNAP);
+    it.y = G.snap(it.y, SNAP);
+    const a = area();
+    const b = G.bbox(it);
+    if (b.x1 > -WALL_SNAP && b.x1 < WALL_SNAP) it.x += -b.x1;
+    if (Math.abs(b.x2 - a.w) < WALL_SNAP) it.x += a.w - b.x2;
+    if (b.y1 > -WALL_SNAP && b.y1 < WALL_SNAP) it.y += -b.y1;
+    if (Math.abs(b.y2 - a.h) < WALL_SNAP) it.y += a.h - b.y2;
+  }
+
+  /* Mantém o móvel dentro do cômodo (se couber). */
+  function keepInside(it, a) {
+    const b = G.bbox(it);
+    const bw = b.x2 - b.x1, bh = b.y2 - b.y1;
+    it.x = bw <= a.w ? G.clamp(it.x, bw / 2, a.w - bw / 2) : a.w / 2;
+    it.y = bh <= a.h ? G.clamp(it.y, bh / 2, a.h - bh / 2) : a.h / 2;
+    it.x = Math.round(it.x * 1000) / 1000;
+    it.y = Math.round(it.y * 1000) / 1000;
+  }
+
+  function snapPoint(p) {
+    return { x: G.snap(p.x, SNAP), y: G.snap(p.y, SNAP) };
+  }
+
+  function nearestWall(wx, wy) {
+    const a = area();
+    const d = {
+      top: Math.abs(wy), bottom: Math.abs(a.h - wy),
+      left: Math.abs(wx), right: Math.abs(a.w - wx),
+    };
+    return Object.keys(d).sort((k1, k2) => d[k1] - d[k2])[0];
+  }
+
+  /* ---------- criação de itens ---------- */
+  function centerOfView() {
+    const a = area();
+    const c = toWorld(cssW / 2, cssH / 2);
+    return { x: G.clamp(c.x, 0, a.w), y: G.clamp(c.y, 0, a.h) };
+  }
+
+  function addFurniture(p) {
+    const a = area();
+    if (!a) return;
+    const c = centerOfView();
+    const it = {
+      id: S.uid(), type: 'furniture', name: p.nome,
+      w: Math.min(p.w, a.w), h: Math.min(p.h, a.h),
+      x: G.clamp(c.x, p.w / 2, Math.max(p.w / 2, a.w - p.w / 2)),
+      y: G.clamp(c.y, p.h / 2, Math.max(p.h / 2, a.h - p.h / 2)),
+      rot: 0, color: p.cor || '#e2e5ec',
+    };
+    S.update(() => { a.items.push(it); });
+    select(it.id);
+    onHint(p.nome + ' adicionado — arraste para posicionar');
+  }
+
+  function addOpening(kind, wall, posCenter) {
+    const a = area();
+    const width = kind === 'porta' ? 0.80 : 1.00;
+    const run = (wall === 'top' || wall === 'bottom') ? a.w : a.h;
+    const it = {
+      id: S.uid(), type: 'opening', kind, wall,
+      width: Math.min(width, run),
+      pos: G.clamp(G.snap(posCenter - width / 2, SNAP), 0, Math.max(0, run - width)),
+      flip: false,
+    };
+    S.update(() => { a.items.push(it); });
+    select(it.id);
+    return it;
+  }
+
+  function removeSelected() {
+    const a = area();
+    if (!a || !selectedId) return;
+    S.update(() => { a.items = a.items.filter((i) => i.id !== selectedId); });
+    select(null);
+  }
+
+  function duplicateSelected() {
+    const a = area(), it = getSelected();
+    if (!it) return;
+    const copy = JSON.parse(JSON.stringify(it));
+    copy.id = S.uid();
+    if (copy.type === 'furniture') { copy.x += 0.2; copy.y += 0.2; }
+    if (copy.type === 'line') { copy.x1 += 0.2; copy.x2 += 0.2; copy.y1 += 0.2; copy.y2 += 0.2; }
+    if (copy.type === 'opening') { copy.pos += 0.2; }
+    S.update(() => { a.items.push(copy); });
+    select(copy.id);
+  }
+
+  /* ---------- gestos ---------- */
+  function localPos(ev) {
+    const r = canvas.getBoundingClientRect();
+    return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+  }
+
+  function startPinch() {
+    const pts = [...pointers.values()];
+    pinch = {
+      dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
+      mid: { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 },
+    };
+  }
+
+  function onDown(ev) {
+    canvas.setPointerCapture(ev.pointerId);
+    const p = localPos(ev);
+    pointers.set(ev.pointerId, p);
+
+    if (pointers.size === 2) {
+      if (gesture && gesture.tx) S.commit();
+      gesture = null; draft = null;
+      startPinch();
+      return;
+    }
+    if (pointers.size > 2) return;
+
+    const w = toWorld(p.x, p.y);
+    const a = area();
+    if (!a) return;
+
+    if (tool === 'line') {
+      const sp = snapPoint(w);
+      draft = { x1: sp.x, y1: sp.y, x2: sp.x, y2: sp.y };
+      gesture = { type: 'line', start: p };
+      draw();
+      return;
+    }
+    if (tool === 'door' || tool === 'window') {
+      const wall = nearestWall(w.x, w.y);
+      const along = (wall === 'top' || wall === 'bottom') ? w.x : w.y;
+      addOpening(tool === 'door' ? 'porta' : 'janela', wall, along);
+      setTool('select');
+      onHint('Arraste para posicionar na parede');
+      return;
+    }
+
+    const h = hitHandle(p.x, p.y);
+    if (h && getSelected()) {
+      S.begin();
+      gesture = { type: 'handle', handle: h, tx: true, start: p, moved: false,
+                  orig: JSON.parse(JSON.stringify(getSelected())) };
+      return;
+    }
+
+    const it = hitItem(w.x, w.y);
+    if (it) {
+      select(it.id);
+      S.begin();
+      gesture = {
+        type: 'item', id: it.id, tx: true, start: p, moved: false,
+        grab: { x: w.x, y: w.y },
+        orig: JSON.parse(JSON.stringify(it)),
+      };
+      return;
+    }
+
+    gesture = { type: 'pan', start: p, origin: { ox: view.ox, oy: view.oy }, moved: false, hitEmpty: true };
+  }
+
+  function onMove(ev) {
+    if (!pointers.has(ev.pointerId)) return;
+    const p = localPos(ev);
+    pointers.set(ev.pointerId, p);
+
+    if (pointers.size >= 2 && pinch) {
+      const pts = [...pointers.values()];
+      const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      const mid = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+      if (pinch.dist > 0) {
+        const before = toWorld(mid.x, mid.y);
+        view.scale = G.clamp(view.scale * (dist / pinch.dist), 6, 800);
+        view.ox = mid.x - before.x * view.scale;
+        view.oy = mid.y - before.y * view.scale;
+      }
+      view.ox += mid.x - pinch.mid.x;
+      view.oy += mid.y - pinch.mid.y;
+      pinch = { dist, mid };
+      draw();
+      return;
+    }
+
+    if (!gesture) return;
+    const w = toWorld(p.x, p.y);
+    const moved = Math.hypot(p.x - gesture.start.x, p.y - gesture.start.y) > 5;
+    if (moved) gesture.moved = true;
+
+    if (gesture.type === 'pan') {
+      view.ox = gesture.origin.ox + (p.x - gesture.start.x);
+      view.oy = gesture.origin.oy + (p.y - gesture.start.y);
+      draw();
+      return;
+    }
+    if (gesture.type === 'line') {
+      let sp = snapPoint(w);
+      const dx = sp.x - draft.x1, dy = sp.y - draft.y1;
+      const ang = G.r2d(Math.atan2(dy, dx));
+      const snapped = Math.round(ang / ANG_SNAP) * ANG_SNAP;
+      if (Math.abs(snapped - ang) < 6) {
+        const len = Math.hypot(dx, dy);
+        sp = { x: draft.x1 + Math.cos(G.d2r(snapped)) * len, y: draft.y1 + Math.sin(G.d2r(snapped)) * len };
+      }
+      draft.x2 = sp.x; draft.y2 = sp.y;
+      onHint('Comprimento: ' + G.m(Math.hypot(draft.x2 - draft.x1, draft.y2 - draft.y1)));
+      draw();
+      return;
+    }
+    if (gesture.type === 'item') { moveItem(w); return; }
+    if (gesture.type === 'handle') { dragHandle(w, p); return; }
+  }
+
+  function moveItem(w) {
+    const a = area(), it = getSelected();
+    if (!it) return;
+    const o = gesture.orig;
+    const dx = w.x - gesture.grab.x, dy = w.y - gesture.grab.y;
+    S.live(() => {
+      if (it.type === 'furniture') {
+        it.x = o.x + dx; it.y = o.y + dy;
+        snapFurniture(it);
+        keepInside(it, a);
+      } else if (it.type === 'line') {
+        it.x1 = G.snap(o.x1 + dx, SNAP); it.y1 = G.snap(o.y1 + dy, SNAP);
+        it.x2 = G.snap(o.x2 + dx, SNAP); it.y2 = G.snap(o.y2 + dy, SNAP);
+      } else if (it.type === 'opening') {
+        const horiz = (it.wall === 'top' || it.wall === 'bottom');
+        const run = horiz ? a.w : a.h;
+        it.pos = G.clamp(G.snap(o.pos + (horiz ? dx : dy), SNAP), 0, Math.max(0, run - it.width));
+      }
+    });
+    onHint(itemHint(it));
+  }
+
+  function dragHandle(w, p) {
+    const a = area(), it = getSelected();
+    if (!it) return;
+    const k = gesture.handle.kind, o = gesture.orig;
+
+    S.live(() => {
+      if (it.type === 'line') {
+        const sp = snapPoint(w);
+        if (k === 'p1') { it.x1 = sp.x; it.y1 = sp.y; } else { it.x2 = sp.x; it.y2 = sp.y; }
+        return;
+      }
+      if (it.type === 'opening') {
+        const horiz = (it.wall === 'top' || it.wall === 'bottom');
+        const run = horiz ? a.w : a.h;
+        const along = G.clamp(G.snap(horiz ? w.x : w.y, SNAP), 0, run);
+        const end = o.pos + o.width;
+        if (k === 'o1') {
+          const pos = Math.min(along, end - 0.2);
+          it.pos = Math.max(0, pos); it.width = end - it.pos;
+        } else {
+          it.width = G.clamp(along - o.pos, 0.2, run - o.pos);
+        }
+        return;
+      }
+      if (k === 'rotate') {
+        const ang = G.r2d(Math.atan2(w.y - it.y, w.x - it.x)) + 90;
+        const snapped = Math.round(ang / ANG_SNAP) * ANG_SNAP;
+        it.rot = Math.abs(snapped - ang) < 7 ? ((snapped % 360) + 360) % 360 : ((ang % 360) + 360) % 360;
+        it.rot = Math.round(it.rot * 10) / 10;
+        return;
+      }
+      // redimensionar por um canto: o canto oposto fica fixo
+      const idx = gesture.handle.i;
+      const cs = G.corners(o);
+      const fixed = cs[(idx + 2) % 4];
+      const d = G.rot(w.x, w.y, fixed.x, fixed.y, -(o.rot || 0));
+      let nw = Math.abs(d.x - fixed.x), nh = Math.abs(d.y - fixed.y);
+      nw = Math.max(0.1, G.snap(nw, SNAP));
+      nh = Math.max(0.1, G.snap(nh, SNAP));
+      const sx = Math.sign(d.x - fixed.x) || 1, sy = Math.sign(d.y - fixed.y) || 1;
+      const localCenter = { x: fixed.x + sx * nw / 2, y: fixed.y + sy * nh / 2 };
+      const c = G.rot(localCenter.x, localCenter.y, fixed.x, fixed.y, o.rot || 0);
+      it.w = nw; it.h = nh; it.x = c.x; it.y = c.y;
+    });
+    void p;
+    onHint(itemHint(it));
+  }
+
+  function itemHint(it) {
+    if (!it) return '';
+    if (it.type === 'furniture') return it.name + ': ' + G.num(it.w) + ' × ' + G.num(it.h) + ' m · ' + Math.round(it.rot || 0) + '°';
+    if (it.type === 'line') return 'Linha: ' + G.m(Math.hypot(it.x2 - it.x1, it.y2 - it.y1));
+    if (it.type === 'opening') return (it.kind === 'porta' ? 'Porta' : 'Janela') + ': ' + G.m(it.width);
+    return '';
+  }
+
+  function onUp(ev) {
+    pointers.delete(ev.pointerId);
+    try { canvas.releasePointerCapture(ev.pointerId); } catch (e) { /* ignore */ }
+
+    if (pointers.size === 1) { pinch = null; startPanFromRemaining(); return; }
+    if (pointers.size > 0) return;
+    pinch = null;
+
+    if (gesture) {
+      if (gesture.type === 'line' && draft) {
+        const len = Math.hypot(draft.x2 - draft.x1, draft.y2 - draft.y1);
+        const a = area();
+        if (len >= 0.1) {
+          const l = { id: S.uid(), type: 'line', x1: draft.x1, y1: draft.y1, x2: draft.x2, y2: draft.y2 };
+          S.update(() => { a.items.push(l); });
+          select(l.id);
+          onHint('Linha de ' + G.m(len) + ' criada');
+        }
+        draft = null;
+        setTool('select');
+      } else if (gesture.tx) {
+        S.commit();
+        onChange();
+      } else if (gesture.type === 'pan' && !gesture.moved && gesture.hitEmpty) {
+        select(null);
+      }
+    }
+    gesture = null;
+    draw();
+  }
+
+  function startPanFromRemaining() {
+    const p = [...pointers.values()][0];
+    gesture = { type: 'pan', start: p, origin: { ox: view.ox, oy: view.oy }, moved: true, hitEmpty: false };
+  }
+
+  function onWheel(ev) {
+    ev.preventDefault();
+    const p = localPos(ev);
+    const f = Math.pow(0.999, ev.deltaY * (ev.deltaMode === 1 ? 16 : 1));
+    zoomAt(f, p.x, p.y);
+  }
+
+  function onKey(ev) {
+    const tag = (ev.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
+    const it = getSelected();
+    if ((ev.key === 'Delete' || ev.key === 'Backspace') && it) { ev.preventDefault(); removeSelected(); return; }
+    if (ev.key === 'Escape') { draft = null; setTool('select'); select(null); return; }
+    if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'z') {
+      ev.preventDefault();
+      if (ev.shiftKey) S.redo(); else S.undo();
+      return;
+    }
+    if (it && it.type === 'furniture' && ev.key.startsWith('Arrow')) {
+      ev.preventDefault();
+      const step = ev.shiftKey ? 0.01 : SNAP;
+      S.update(() => {
+        if (ev.key === 'ArrowLeft') it.x -= step;
+        if (ev.key === 'ArrowRight') it.x += step;
+        if (ev.key === 'ArrowUp') it.y -= step;
+        if (ev.key === 'ArrowDown') it.y += step;
+        it.x = Math.round(it.x * 1000) / 1000;
+        it.y = Math.round(it.y * 1000) / 1000;
+      });
+    }
+  }
+
+  /* ---------- exportar PNG ---------- */
+  function exportPNG(filename) {
+    const a = area();
+    if (!a) return;
+    const pad = 90;
+    const scale = 140;
+    const W = Math.round((a.w + 2 * a.wall) * scale + pad * 2);
+    const H = Math.round((a.h + 2 * a.wall) * scale + pad * 2);
+    const c = document.createElement('canvas');
+    const dpr = 2;
+    c.width = W * dpr; c.height = H * dpr;
+    const cx = c.getContext('2d');
+    cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    App.render(cx, {
+      area: a, width: W, height: H, selectedId: null, exportMode: true,
+      view: { scale, ox: pad + a.wall * scale, oy: pad + a.wall * scale },
+    });
+    c.toBlob((blob) => {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = (filename || a.name.replace(/\s+/g, '-').toLowerCase()) + '.png';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }, 'image/png');
+  }
+
+  /* ---------- API ---------- */
+  function setTool(t) {
+    tool = t;
+    document.querySelectorAll('.tool').forEach((b) => b.classList.toggle('is-active', b.dataset.tool === t));
+    if (t === 'line') onHint('Arraste dentro do cômodo para desenhar a linha');
+    if (t === 'door') onHint('Toque na parede onde fica a porta');
+    if (t === 'window') onHint('Toque na parede onde fica a janela');
+    canvas.style.cursor = t === 'select' ? 'default' : 'crosshair';
+  }
+
+  function init(opts) {
+    canvas = opts.canvas; stage = opts.stage;
+    ctx = canvas.getContext('2d');
+    onChange = opts.onChange || onChange;
+    onHint = opts.onHint || onHint;
+
+    canvas.addEventListener('pointerdown', onDown);
+    canvas.addEventListener('pointermove', onMove);
+    canvas.addEventListener('pointerup', onUp);
+    canvas.addEventListener('pointercancel', onUp);
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('resize', resize);
+    if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
+
+    resize();
+    fit();
+  }
+
+  return {
+    init, draw, fit, resize, setTool, select, getSelected, addFurniture, addOpening, keepInside,
+    removeSelected, duplicateSelected, exportPNG, zoomAt,
+    zoomIn: () => zoomAt(1.25, cssW / 2, cssH / 2),
+    zoomOut: () => zoomAt(0.8, cssW / 2, cssH / 2),
+    get selectedId() { return selectedId; },
+    get tool() { return tool; },
+  };
+})();
+</script>
+<script>
+/* Painéis, formulários, catálogo e menus. */
+window.App = window.App || {};
+
+App.UI = (function () {
+  const G = App.geo, S = App.Store, E = App.Editor;
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+  let lastPropsKey = '';
+  let lastAreasSig = '';
+  let hintTimer = 0;
+
+  /* ---------- helpers ---------- */
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, (c) => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+  }
+
+  function toast(msg) {
+    const el = $('#toast');
+    el.textContent = msg;
+    el.hidden = false;
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.hidden = true; }, 2200);
+  }
+
+  function hint(msg) {
+    const el = $('#hint');
+    if (!msg) { el.hidden = true; return; }
+    el.textContent = msg;
+    el.hidden = false;
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(() => { el.hidden = true; }, 2600);
+  }
+
+  function confirmDlg(title, text) {
+    return new Promise((resolve) => {
+      const dlg = $('#confirmDlg');
+      $('#confirmTitle').textContent = title;
+      $('#confirmText').textContent = text;
+      dlg.returnValue = '';
+      dlg.showModal();
+      dlg.addEventListener('close', () => resolve(dlg.returnValue === 'ok'), { once: true });
+    });
+  }
+
+  function setTab(name) {
+    $$('.tab').forEach((t) => t.classList.toggle('is-active', t.dataset.tab === name));
+    $$('.pane').forEach((p) => p.classList.toggle('is-active', p.id === 'pane-' + name));
+  }
+  const isMobile = () => window.matchMedia('(max-width:820px)').matches;
+  function openPanel(open) {
+    $('#panel').classList.toggle('is-open', open);
+  }
+
+  /* ---------- áreas ---------- */
+  function renderAreas() {
+    const p = S.get();
+    const sig = JSON.stringify(p.areas.map((a) => [a.id, a.name, a.w, a.h, a.items.length]))
+      + '|' + p.activeId;
+    if (sig === lastAreasSig) return;
+    lastAreasSig = sig;
+
+    const ul = $('#areaList');
+    ul.innerHTML = p.areas.map((a) => `
+      <li class="area-item ${a.id === p.activeId ? 'is-active' : ''}" data-id="${a.id}">
+        <span class="area-swatch" style="background:${esc(a.color)}"></span>
+        <span class="area-info">
+          <b>${esc(a.name)}</b>
+          <span>${G.num(a.w)} × ${G.num(a.h)} m · ${G.m2(a.w * a.h)}</span>
+        </span>
+        <span class="area-acts">
+          <button class="mini" data-act="edit" title="Editar medidas">✎</button>
+          <button class="mini" data-act="del" title="Excluir área">🗑</button>
+        </span>
+      </li>`).join('');
+
+    $('#projTotal').textContent = 'Total: ' + G.m2(S.totalArea());
+    $('#projName').textContent = p.name;
+    const a = S.activeArea();
+    $('#areaChip').textContent = a
+      ? `${a.name} · ${G.num(a.w)} × ${G.num(a.h)} m · ${G.m2(a.w * a.h)}`
+      : '—';
+  }
+
+  function renderItems() {
+    const a = S.activeArea();
+    let ul = $('#itemList');
+    if (!ul) {
+      ul = document.createElement('ul');
+      ul.id = 'itemList';
+      ul.className = 'item-list';
+      $('#pane-areas').appendChild(ul);
+    }
+    if (!a) { ul.innerHTML = ''; return; }
+    const label = (i) => i.type === 'furniture' ? i.name
+      : i.type === 'line' ? 'Linha'
+      : (i.kind === 'porta' ? 'Porta' : 'Janela');
+    const size = (i) => i.type === 'furniture' ? `${G.num(i.w)}×${G.num(i.h)} m`
+      : i.type === 'line' ? G.m(Math.hypot(i.x2 - i.x1, i.y2 - i.y1))
+      : G.m(i.width);
+    const color = (i) => i.type === 'furniture' ? (i.color || '#e2e5ec')
+      : i.type === 'line' ? '#3b49c4' : '#8a91a3';
+    ul.innerHTML = `<li class="muted small" style="padding:4px 2px">Itens de ${esc(a.name)} (${a.items.length})</li>`
+      + a.items.map((i) => `
+      <li class="item-row ${i.id === E.selectedId ? 'is-active' : ''}" data-id="${i.id}">
+        <span class="dot" style="background:${color(i)}"></span>
+        <span class="nm">${esc(label(i))}</span>
+        <span class="sz">${size(i)}</span>
+      </li>`).join('');
+  }
+
+  function areaDialog(area) {
+    const dlg = $('#areaDlg');
+    $('#areaDlgTitle').textContent = area ? 'Editar área' : 'Nova área';
+    $('#aName').value = area ? area.name : '';
+    $('#aW').value = area ? G.num(area.w) : '';
+    $('#aH').value = area ? G.num(area.h) : '';
+    $('#aT').value = area ? G.num(area.wall * 100, 0) : '10';
+    $('#aColor').value = area ? area.color : randomColor();
+    $('#areaErr').hidden = true;
+    dlg.returnValue = '';
+    dlg.showModal();
+
+    dlg.addEventListener('close', () => {
+      if (dlg.returnValue !== 'ok') return;
+      const w = G.parseNum($('#aW').value);
+      const h = G.parseNum($('#aH').value);
+      const t = G.parseNum($('#aT').value) / 100;
+      const name = $('#aName').value.trim() || 'Área';
+      if (!(w > 0) || !(h > 0)) { toast('Informe largura e profundidade em metros'); return; }
+      const wall = Number.isFinite(t) && t >= 0 ? t : 0.1;
+      if (area) {
+        S.update(() => {
+          area.name = name; area.w = w; area.h = h; area.wall = wall; area.color = $('#aColor').value;
+          clampItems(area);
+        });
+        toast('Área atualizada');
+      } else {
+        const na = {
+          id: S.uid(), name, w, h, wall, color: $('#aColor').value, items: [],
+        };
+        S.update((p) => { p.areas.push(na); p.activeId = na.id; });
+        E.select(null);
+        toast('Área criada');
+      }
+      E.fit();
+    }, { once: true });
+  }
+
+  function clampItems(a) {
+    a.items.forEach((i) => {
+      if (i.type === 'opening') {
+        const run = (i.wall === 'top' || i.wall === 'bottom') ? a.w : a.h;
+        i.width = G.clamp(i.width, 0.2, run);
+        i.pos = G.clamp(i.pos, 0, run - i.width);
+      } else if (i.type === 'furniture') {
+        E.keepInside(i, a);
+      }
+    });
+  }
+
+  function randomColor() {
+    const cores = ['#7c8cff', '#4bb3a5', '#e9915c', '#c76b98', '#5aa9e6', '#8bbf5a'];
+    return cores[Math.floor(Math.random() * cores.length)];
+  }
+
+  /* ---------- catálogo ---------- */
+  function renderCatalog() {
+    const sel = $('#catFilter');
+    if (!sel.options.length) {
+      sel.innerHTML = App.presets.categorias.map((c) => `<option>${c}</option>`).join('');
+    }
+    const cat = sel.value || 'Todos';
+    const itens = App.presets.itens.filter((i) => cat === 'Todos' || i.cat === cat);
+    $('#catalog').innerHTML = itens.map((i) => `
+      <button class="cat-item" data-idx="${App.presets.itens.indexOf(i)}">
+        <i style="background:${i.cor}"></i>
+        <b>${esc(i.nome)}</b>
+        <span>${G.num(i.w)} × ${G.num(i.h)} m</span>
+      </button>`).join('') || '<p class="muted small">Nada nesta categoria.</p>';
+  }
+
+  /* ---------- propriedades ---------- */
+  function fieldNum(id, label, value, step) {
+    return `<div class="field">
+      <label for="${id}">${label}</label>
+      <input id="${id}" inputmode="decimal" value="${value}" data-step="${step || ''}">
+    </div>`;
+  }
+
+  function propsHTML(it) {
+    if (it.type === 'furniture') {
+      return `
+      <div class="prop-head"><span class="badge">Móvel</span></div>
+      <div class="field"><label for="pName">Nome</label><input id="pName" value="${esc(it.name || '')}"></div>
+      <div class="row">${fieldNum('pW', 'Largura (m)', G.num(it.w))}${fieldNum('pH', 'Profundidade (m)', G.num(it.h))}</div>
+      <div class="row">${fieldNum('pX', 'X do centro (m)', G.num(it.x))}${fieldNum('pY', 'Y do centro (m)', G.num(it.y))}</div>
+      <div class="row">${fieldNum('pR', 'Rotação (°)', G.num(it.rot || 0, 0))}
+        <div class="field"><label for="pColor">Cor</label><input id="pColor" type="color" value="${toHex(it.color)}"></div></div>
+      <div class="prop-actions">
+        <button class="btn" data-act="rot90">Girar 90°</button>
+        <button class="btn" data-act="dup">Duplicar</button>
+        <button class="btn btn-danger" data-act="del">Excluir</button>
+      </div>`;
+    }
+    if (it.type === 'line') {
+      const len = Math.hypot(it.x2 - it.x1, it.y2 - it.y1);
+      const ang = G.r2d(Math.atan2(it.y2 - it.y1, it.x2 - it.x1));
+      return `
+      <div class="prop-head"><span class="badge">Linha</span></div>
+      <div class="row">${fieldNum('pLen', 'Comprimento (m)', G.num(len))}${fieldNum('pAng', 'Ângulo (°)', G.num(ang, 0))}</div>
+      <p class="muted small">A linha está na mesma escala do cômodo — use para dividir ambientes ou medir vãos antes de comprar o móvel.</p>
+      <div class="prop-actions">
+        <button class="btn" data-act="dup">Duplicar</button>
+        <button class="btn btn-danger" data-act="del">Excluir</button>
+      </div>`;
+    }
+    const paredes = { top: 'Superior', right: 'Direita', bottom: 'Inferior', left: 'Esquerda' };
+    return `
+      <div class="prop-head"><span class="badge">${it.kind === 'porta' ? 'Porta' : 'Janela'}</span></div>
+      <div class="field"><label for="pWall">Parede</label>
+        <select id="pWall">${Object.entries(paredes).map(([k, v]) =>
+          `<option value="${k}" ${it.wall === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+      <div class="row">${fieldNum('pOw', 'Largura (m)', G.num(it.width))}${fieldNum('pOp', 'Distância do canto (m)', G.num(it.pos))}</div>
+      <div class="prop-actions">
+        ${it.kind === 'porta' ? '<button class="btn" data-act="flip">Inverter abertura</button>' : ''}
+        <button class="btn" data-act="dup">Duplicar</button>
+        <button class="btn btn-danger" data-act="del">Excluir</button>
+      </div>`;
+  }
+
+  function toHex(c) {
+    if (!c) return '#e2e5ec';
+    if (c[0] === '#' && c.length === 7) return c;
+    return '#e2e5ec';
+  }
+
+  function renderProps() {
+    const it = E.getSelected();
+    const box = $('#propsForm'), empty = $('#propsEmpty');
+    if (!it) {
+      lastPropsKey = '';
+      box.hidden = true; box.innerHTML = '';
+      empty.hidden = false;
+      return;
+    }
+    empty.hidden = true; box.hidden = false;
+    const key = it.id + ':' + it.type + ':' + (it.kind || '');
+    if (key !== lastPropsKey) {
+      lastPropsKey = key;
+      box.innerHTML = propsHTML(it);
+      wireProps(it);
+    } else {
+      syncProps(it);
+    }
+  }
+
+  function setVal(id, v) {
+    const el = document.getElementById(id);
+    if (el && document.activeElement !== el) el.value = v;
+  }
+
+  function syncProps(it) {
+    if (it.type === 'furniture') {
+      setVal('pName', it.name || '');
+      setVal('pW', G.num(it.w)); setVal('pH', G.num(it.h));
+      setVal('pX', G.num(it.x)); setVal('pY', G.num(it.y));
+      setVal('pR', G.num(it.rot || 0, 0));
+    } else if (it.type === 'line') {
+      setVal('pLen', G.num(Math.hypot(it.x2 - it.x1, it.y2 - it.y1)));
+      setVal('pAng', G.num(G.r2d(Math.atan2(it.y2 - it.y1, it.x2 - it.x1)), 0));
+    } else {
+      setVal('pOw', G.num(it.width));
+      setVal('pOp', G.num(it.pos));
+      const w = document.getElementById('pWall');
+      if (w && document.activeElement !== w) w.value = it.wall;
+    }
+  }
+
+  function wireProps(it) {
+    const box = $('#propsForm');
+    const a = S.activeArea();
+
+    const onNum = (id, apply) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('change', () => {
+        const v = G.parseNum(el.value);
+        if (!Number.isFinite(v)) { renderProps(); return; }
+        S.update(() => apply(v));
+        E.draw();
+        renderProps();
+      });
+    };
+
+    if (it.type === 'furniture') {
+      const nm = document.getElementById('pName');
+      nm.addEventListener('change', () => S.update(() => { it.name = nm.value.trim() || 'Móvel'; }));
+      const col = document.getElementById('pColor');
+      col.addEventListener('input', () => S.update(() => { it.color = col.value; }));
+      const fix = () => E.keepInside(it, S.activeArea());
+      onNum('pW', (v) => { it.w = G.clamp(v, 0.05, 50); fix(); });
+      onNum('pH', (v) => { it.h = G.clamp(v, 0.05, 50); fix(); });
+      onNum('pX', (v) => { it.x = v; fix(); });
+      onNum('pY', (v) => { it.y = v; fix(); });
+      onNum('pR', (v) => { it.rot = ((v % 360) + 360) % 360; fix(); });
+    } else if (it.type === 'line') {
+      onNum('pLen', (v) => {
+        const ang = Math.atan2(it.y2 - it.y1, it.x2 - it.x1);
+        it.x2 = it.x1 + Math.cos(ang) * v;
+        it.y2 = it.y1 + Math.sin(ang) * v;
+      });
+      onNum('pAng', (v) => {
+        const len = Math.hypot(it.x2 - it.x1, it.y2 - it.y1);
+        it.x2 = it.x1 + Math.cos(G.d2r(v)) * len;
+        it.y2 = it.y1 + Math.sin(G.d2r(v)) * len;
+      });
+    } else {
+      const ws = document.getElementById('pWall');
+      ws.addEventListener('change', () => S.update(() => {
+        it.wall = ws.value;
+        const run = (it.wall === 'top' || it.wall === 'bottom') ? a.w : a.h;
+        it.width = G.clamp(it.width, 0.2, run);
+        it.pos = G.clamp(it.pos, 0, run - it.width);
+      }));
+      onNum('pOw', (v) => {
+        const run = (it.wall === 'top' || it.wall === 'bottom') ? a.w : a.h;
+        it.width = G.clamp(v, 0.2, run);
+        it.pos = G.clamp(it.pos, 0, run - it.width);
+      });
+      onNum('pOp', (v) => {
+        const run = (it.wall === 'top' || it.wall === 'bottom') ? a.w : a.h;
+        it.pos = G.clamp(v, 0, Math.max(0, run - it.width));
+      });
+    }
+
+    box.addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-act]');
+      if (!b) return;
+      const act = b.dataset.act;
+      if (act === 'del') E.removeSelected();
+      if (act === 'dup') E.duplicateSelected();
+      if (act === 'rot90') S.update(() => {
+        it.rot = (((it.rot || 0) + 90) % 360);
+        E.keepInside(it, S.activeArea());
+      });
+      if (act === 'flip') S.update(() => { it.flip = !it.flip; });
+      E.draw();
+    });
+  }
+
+  /* ---------- render geral ---------- */
+  let scheduled = false;
+  function render() {
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(() => {
+      scheduled = false;
+      renderAreas();
+      renderItems();
+      renderProps();
+      $('#btnUndo').disabled = !S.canUndo();
+      $('#btnRedo').disabled = !S.canRedo();
+    });
+  }
+
+  /* ---------- import / export ---------- */
+  function exportJSON() {
+    const blob = new Blob([JSON.stringify(S.get(), null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (S.get().name || 'planta').replace(/\s+/g, '-').toLowerCase() + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast('Projeto exportado');
+  }
+
+  function importJSON(file) {
+    const rd = new FileReader();
+    rd.onload = () => {
+      try {
+        S.replace(JSON.parse(rd.result));
+        E.select(null); E.fit();
+        toast('Projeto importado');
+      } catch (e) {
+        toast('Arquivo inválido');
+      }
+    };
+    rd.readAsText(file);
+  }
+
+  /* ---------- eventos ---------- */
+  function bind() {
+    $$('.tab').forEach((t) => t.addEventListener('click', () => {
+      setTab(t.dataset.tab);
+      if (isMobile()) openPanel(true);
+    }));
+
+    $('#btnPanel').addEventListener('click', () => openPanel(!$('#panel').classList.contains('is-open')));
+    $('#sheetGrip').addEventListener('click', () => openPanel(false));
+
+    $('#areaList').addEventListener('click', async (ev) => {
+      const li = ev.target.closest('.area-item');
+      if (!li) return;
+      const id = li.dataset.id;
+      const a = S.get().areas.find((x) => x.id === id);
+      const act = ev.target.closest('[data-act]');
+      if (act && act.dataset.act === 'edit') { areaDialog(a); return; }
+      if (act && act.dataset.act === 'del') {
+        if (S.get().areas.length === 1) { toast('Mantenha ao menos uma área'); return; }
+        if (await confirmDlg('Excluir área', `Excluir "${a.name}" e todos os seus itens?`)) {
+          S.update((p) => {
+            p.areas = p.areas.filter((x) => x.id !== id);
+            if (p.activeId === id) p.activeId = p.areas[0].id;
+          });
+          E.select(null); E.fit();
+        }
+        return;
+      }
+      S.update((p) => { p.activeId = id; });
+      E.select(null); E.fit();
+      if (isMobile()) openPanel(false);
+    });
+
+    $('#pane-areas').addEventListener('click', (ev) => {
+      const row = ev.target.closest('.item-row');
+      if (!row) return;
+      E.select(row.dataset.id);
+      setTab('props');
+    });
+
+    $('#btnNewArea').addEventListener('click', () => areaDialog(null));
+
+    $('#catFilter').addEventListener('change', renderCatalog);
+    $('#catalog').addEventListener('click', (ev) => {
+      const b = ev.target.closest('.cat-item');
+      if (!b) return;
+      E.addFurniture(App.presets.itens[+b.dataset.idx]);
+      if (isMobile()) openPanel(false);
+      setTab('props');
+    });
+
+    $('#btnCustomItem').addEventListener('click', () => {
+      const dlg = $('#itemDlg');
+      $('#iName').value = ''; $('#iW').value = ''; $('#iH').value = '';
+      dlg.returnValue = '';
+      dlg.showModal();
+      dlg.addEventListener('close', () => {
+        if (dlg.returnValue !== 'ok') return;
+        const w = G.parseNum($('#iW').value), h = G.parseNum($('#iH').value);
+        if (!(w > 0) || !(h > 0)) { toast('Medidas inválidas'); return; }
+        E.addFurniture({ nome: $('#iName').value.trim() || 'Móvel', w, h, cor: '#e2e5ec' });
+        if (isMobile()) openPanel(false);
+        setTab('props');
+      }, { once: true });
+    });
+
+    $$('.tool').forEach((b) => b.addEventListener('click', () => {
+      E.setTool(b.dataset.tool);
+      if (isMobile()) openPanel(false);
+    }));
+
+    $('#btnZoomIn').addEventListener('click', E.zoomIn);
+    $('#btnZoomOut').addEventListener('click', E.zoomOut);
+    $('#btnFit').addEventListener('click', () => E.fit());
+    $('#btnUndo').addEventListener('click', () => S.undo());
+    $('#btnRedo').addEventListener('click', () => S.redo());
+
+    $('#btnRename').addEventListener('click', () => {
+      const nome = prompt('Nome do projeto', S.get().name);
+      if (nome != null && nome.trim()) S.update((p) => { p.name = nome.trim(); });
+    });
+
+    const menu = $('#moreMenu');
+    $('#btnMore').addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      menu.hidden = !menu.hidden;
+    });
+    document.addEventListener('click', () => { menu.hidden = true; });
+    menu.addEventListener('click', async (ev) => {
+      const b = ev.target.closest('[data-act]');
+      if (!b) return;
+      menu.hidden = true;
+      const act = b.dataset.act;
+      if (act === 'png') { E.exportPNG(); toast('Imagem gerada'); }
+      if (act === 'export') exportJSON();
+      if (act === 'import') $('#fileInput').click();
+      if (act === 'reset') {
+        if (await confirmDlg('Começar do zero', 'Isso apaga todas as áreas e móveis deste navegador.')) {
+          S.replace(S.projetoExemplo());
+          E.select(null); E.fit();
+        }
+      }
+    });
+
+    $('#fileInput').addEventListener('change', (ev) => {
+      if (ev.target.files[0]) importJSON(ev.target.files[0]);
+      ev.target.value = '';
+    });
+  }
+
+  /* Dentro de um preview/iframe o navegador bloqueia downloads. */
+  const embedded = (() => {
+    try { return window.top !== window.self; } catch (e) { return true; }
+  })();
+
+  function adaptMenu() {
+    if (!embedded) return;
+    ['png', 'export', 'import'].forEach((act) => {
+      const b = document.querySelector('#moreMenu [data-act="' + act + '"]');
+      if (b) b.hidden = true;
+    });
+    const note = document.createElement('p');
+    note.className = 'muted small';
+    note.style.padding = '8px 12px';
+    note.style.margin = '0';
+    note.textContent = 'Salvar PNG e exportar .json só funcionam com o site aberto em aba própria.';
+    $('#moreMenu').insertBefore(note, $('#moreMenu').firstChild);
+  }
+
+  function init() {
+    bind();
+    adaptMenu();
+    renderCatalog();
+    render();
+    S.subscribe(render);
+  }
+
+  return { init, render, toast, hint, setTab, isMobile, openPanel };
+})();
+</script>
+<script>
+/* Bootstrap. */
+(function () {
+  const S = App.Store, E = App.Editor, UI = App.UI;
+
+  S.load();
+
+  E.init({
+    canvas: document.getElementById('plan'),
+    stage: document.getElementById('stage'),
+    onChange: () => {
+      UI.render();
+      if (E.getSelected()) UI.setTab('props');
+    },
+    onHint: (msg) => UI.hint(msg),
+  });
+
+  UI.init();
+  S.subscribe(() => E.draw());
+  E.fit();
+
+  // primeira visita: dica rápida
+  try {
+    if (!localStorage.getItem('plantabaixa.visto')) {
+      localStorage.setItem('plantabaixa.visto', '1');
+      setTimeout(() => UI.hint('Toque em "Áreas" para criar cômodos com as suas medidas'), 700);
+    }
+  } catch (e) { /* ignore */ }
+})();
+</script>
