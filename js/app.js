@@ -1,6 +1,7 @@
 /* Bootstrap. */
 (function () {
   const S = App.Store, E = App.Editor, UI = App.UI;
+  let ultimoSel = null;
 
   S.load();
 
@@ -9,9 +10,14 @@
     stage: document.getElementById('stage'),
     onChange: () => {
       UI.render();
-      // montando o conjunto de luz, não sair da aba a cada luminária adicionada
+      // só puxa para o editor quando a seleção muda de verdade; montando o
+      // conjunto de luz, fica na aba Luz
       const sel = E.getSelected();
-      if (sel && !(sel.type === 'light' && UI.activeTab() === 'luz')) UI.setTab('props');
+      const id = sel ? sel.id : null;
+      if (id && id !== ultimoSel && !(sel.type === 'light' && UI.activeTab() === 'luz')) {
+        UI.setTab('props');
+      }
+      ultimoSel = id;
     },
     onHint: (msg) => UI.hint(msg),
   });

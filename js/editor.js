@@ -11,8 +11,13 @@ App.Editor = (function () {
   let canvas, ctx, stage;
   let view = { scale: 100, ox: 0, oy: 0 };    // planta: ox/oy = origem do cômodo
   let viewF = { scale: 100, ox: 0, oy: 0 };   // vista frontal: oy = linha do piso
-  let mode = 'plan';                          // 'plan' | 'front'
+  let mode = 'plan';                          // 'plan' | 'front' | 'mob'
   let frontWall = 'top';
+  let mapaLuz = true;                         // mostrar onde a luz bate
+  let mobView = 'frente';                     // 'frente' | '3d'
+  let viewM = { scale: 100, ox: 0, oy: 0 };   // móvel de frente
+  let view3 = { scale: 100, cx: 0, cy: 0, yaw: -0.6, pitch: 0.32 };
+  let selModulo = null;
   let tool = 'select';
   let selectedId = null;
   let draft = null;
@@ -27,7 +32,7 @@ App.Editor = (function () {
   let pinch = null;
 
   const area = () => S.activeArea();
-  const V = () => (mode === 'plan' ? view : viewF);
+  const V = () => (mode === 'plan' ? view : mode === 'front' ? viewF : viewM);
   const toWorld = (sx, sy) => ({ x: (sx - view.ox) / view.scale, y: (sy - view.oy) / view.scale });
   /* Tela -> (s ao longo da parede, z altura) na vista frontal. */
   const toElev = (sx, sy) => ({ s: (sx - viewF.ox) / viewF.scale, z: (viewF.oy - sy) / viewF.scale });
@@ -49,6 +54,14 @@ App.Editor = (function () {
     if (raf) return;
     raf = requestAnimationFrame(() => {
       raf = 0;
+      if (mode === 'mob') {
+        handles = [];
+        const m = S.activeMovel();
+        if (!m) return;
+        if (mobView === '3d') App.marcenaria.desenha3D(ctx, m, view3, cssW, cssH, {});
+        else App.marcenaria.desenhaFrente(ctx, m, viewM, cssW, cssH, { selecionado: selModulo });
+        return;
+      }
       if (mode === 'front') {
         handles = [];
         App.elev.render(ctx, {
@@ -59,15 +72,32 @@ App.Editor = (function () {
       }
       handles = App.render(ctx, {
         area: area(), view, width: cssW, height: cssH,
-        selectedId, draft,
+        selectedId, draft, mapaLuz,
       });
     });
   }
 
   function fit() {
-    const a = area();
-    if (!a || !cssW) return;
+    if (!cssW) return;
     const pad = 70;
+    if (mode === 'mob') {
+      const m = S.activeMovel();
+      if (!m) return;
+      if (mobView === '3d') {
+        const diag = Math.hypot(m.w, m.h) * 0.85 + m.d * 0.4;
+        view3.scale = G.clamp(Math.min(cssW - pad * 2, cssH - pad * 2) / Math.max(0.5, diag), 10, 600);
+        view3.cx = cssW / 2; view3.cy = cssH / 2;
+      } else {
+        const s = Math.min((cssW - pad * 2.4) / m.w, (cssH - pad * 2.4) / m.h);
+        viewM.scale = G.clamp(s, 8, 600);
+        viewM.ox = cssW / 2 - (m.w / 2) * viewM.scale;
+        viewM.oy = cssH / 2 + (m.h / 2) * viewM.scale;
+      }
+      draw();
+      return;
+    }
+    const a = area();
+    if (!a) return;
     if (mode === 'front') {
       const L = App.elev.run(a, frontWall);
       const s = Math.min((cssW - pad * 2) / L, (cssH - pad * 2) / a.pd);
@@ -86,6 +116,11 @@ App.Editor = (function () {
   }
 
   function zoomAt(factor, sx, sy) {
+    if (mode === 'mob' && mobView === '3d') {
+      view3.scale = G.clamp(view3.scale * factor, 10, 900);
+      draw();
+      return;
+    }
     const v = V();
     const k = G.clamp(v.scale * factor, 6, 800) / v.scale;
     v.scale *= k;
@@ -147,6 +182,20 @@ App.Editor = (function () {
     }
     for (const p of App.elev.vaos(a, frontWall)) {
       if (s >= p.s1 - tol && s <= p.s2 + tol && z >= p.z1 - tol && z <= p.z2 + tol) return p.it;
+    }
+    return null;
+  }
+
+  /* Módulo do móvel sob o ponto, na vista de frente. */
+  function hitModulo(px, py) {
+    const m = S.activeMovel();
+    if (!m) return null;
+    const x = (px - viewM.ox) / viewM.scale;
+    const y = (viewM.oy - py) / viewM.scale;
+    if (y < 0 || y > m.h) return null;
+    const offs = App.marcenaria.offsets(m);
+    for (let i = 0; i < m.modulos.length; i++) {
+      if (x >= offs[i] && x <= offs[i] + m.modulos[i].larg) return m.modulos[i];
     }
     return null;
   }
@@ -226,6 +275,11 @@ App.Editor = (function () {
       id: S.uid(), type: 'light',
       kind: p.kind === 'principal' ? 'principal' : 'spot',
       name: p.nome, lumens: p.lumens,
+      watts: p.watts || Math.round(p.lumens / 90),
+      dim: 100,
+      beam: p.beam || 120,
+      k: p.k || 4000,
+      base: p.altura > 0 ? p.altura : a.pd,
       x: G.snap(G.clamp(c.x, 0.15, a.w - 0.15), SNAP),
       y: G.snap(G.clamp(c.y, 0.15, a.h - 0.15), SNAP),
     };
@@ -341,6 +395,25 @@ App.Editor = (function () {
 
     const a = area();
     if (!a) return;
+
+    if (mode === 'mob') {
+      if (mobView === '3d') {
+        gesture = { type: 'orbit', start: p, origem: { yaw: view3.yaw, pitch: view3.pitch }, moved: false };
+        return;
+      }
+      const mo = hitModulo(p.x, p.y);
+      if (mo) {
+        selModulo = mo.id;
+        draw();
+        onChange();
+      } else {
+        selModulo = null;
+        draw();
+        onChange();
+      }
+      gesture = { type: 'pan', start: p, origin: { ox: viewM.ox, oy: viewM.oy }, moved: false, hitEmpty: false };
+      return;
+    }
 
     if (mode === 'front') {
       const alvo = hitElev(p.x, p.y);
@@ -469,6 +542,12 @@ App.Editor = (function () {
       return;
     }
     if (gesture.type === 'elev') { moveElev(p); return; }
+    if (gesture.type === 'orbit') {
+      view3.yaw = gesture.origem.yaw + (p.x - gesture.start.x) * 0.01;
+      view3.pitch = G.clamp(gesture.origem.pitch + (p.y - gesture.start.y) * 0.008, -1.2, 1.2);
+      draw();
+      return;
+    }
     if (gesture.type === 'line') {
       let sp = snapPoint(w);
       const dx = sp.x - draft.x1, dy = sp.y - draft.y1;
@@ -649,6 +728,7 @@ App.Editor = (function () {
 
   /* ---------- exportar PNG ---------- */
   function exportPNG(filename) {
+    if (mode === 'mob') return exportMovelPNG(filename);
     const a = area();
     if (!a) return;
     const pad = 90;
@@ -670,25 +750,38 @@ App.Editor = (function () {
       });
     } else {
       App.render(cx, {
-        area: a, width: W, height: H, selectedId: null, exportMode: true,
+        area: a, width: W, height: H, selectedId: null, exportMode: true, mapaLuz,
         view: { scale, ox: pad + a.wall * scale, oy: pad + a.wall * scale },
       });
     }
-    c.toBlob((blob) => {
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      const base = filename || a.name.replace(/\s+/g, '-').toLowerCase()
-        + (frente ? '-parede-' + App.elev.NOMES[frontWall] : '');
-      link.download = base + '.png';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    }, 'image/png');
+    const base = filename || (a.name.replace(/\s+/g, '-').toLowerCase()
+      + (frente ? '-parede-' + App.elev.NOMES[frontWall] : '-planta'));
+    App.exportar.salvarCanvas(c, base + '.png', onHint);
+  }
+
+  function exportMovelPNG(filename) {
+    const m = S.activeMovel();
+    if (m) App.exportar.movel(m, filename, onHint);
   }
 
   /* ---------- API ---------- */
+  function setMovelView(v) {
+    mobView = v === '3d' ? '3d' : 'frente';
+    fit();
+    onChange();
+  }
+
+  function selecionarModulo(id) {
+    selModulo = id;
+    draw();
+    onChange();
+  }
+
+  function setMapaLuz(v) {
+    mapaLuz = !!v;
+    draw();
+  }
+
   function setMode(m) {
     if (m === mode) return;
     mode = m;
@@ -741,13 +834,17 @@ App.Editor = (function () {
 
   return {
     init, draw, fit, resize, setTool, select, getSelected, addFurniture, addOpening, addLight,
-    keepInside, toggleOpen, cycleDoor, setMode, setFrontWall, girarParede,
+    keepInside, toggleOpen, cycleDoor, setMode, setFrontWall, girarParede, setMapaLuz,
+    setMovelView, selecionarModulo,
     removeSelected, duplicateSelected, exportPNG, zoomAt,
     zoomIn: () => zoomAt(1.25, cssW / 2, cssH / 2),
     zoomOut: () => zoomAt(0.8, cssW / 2, cssH / 2),
     get selectedId() { return selectedId; },
     get tool() { return tool; },
     get mode() { return mode; },
+    get mapaLuz() { return mapaLuz; },
+    get mobView() { return mobView; },
+    get selModulo() { return selModulo; },
     get frontWall() { return frontWall; },
   };
 })();

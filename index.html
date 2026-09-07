@@ -22,7 +22,9 @@
   <div class="menu-wrap">
     <button class="icon-btn" id="btnMore" aria-label="Mais opções">⋯</button>
     <div class="menu" id="moreMenu" hidden>
-      <button data-act="png">Salvar imagem (PNG)</button>
+      <button data-act="png">Salvar esta vista (PNG)</button>
+      <button data-act="areas-png">Exportar todas as áreas (PNG)</button>
+      <button data-act="areas-csv">Exportar áreas em planilha (CSV)</button>
       <button data-act="export">Exportar projeto (.json)</button>
       <button data-act="import">Importar projeto</button>
       <hr>
@@ -34,11 +36,16 @@
 <main class="layout">
   <aside class="panel" id="panel" aria-label="Painel">
     <div class="sheet-grip" id="sheetGrip"></div>
-    <nav class="tabs" role="tablist">
+    <nav class="tabs" role="tablist" id="tabsAmb">
       <button class="tab is-active" data-tab="areas" role="tab">Áreas</button>
       <button class="tab" data-tab="add" role="tab">Adicionar</button>
       <button class="tab" data-tab="luz" role="tab">Luz</button>
       <button class="tab" data-tab="props" role="tab">Editar</button>
+    </nav>
+    <nav class="tabs" role="tablist" id="tabsMob" hidden>
+      <button class="tab is-active" data-tab="moveis" role="tab">Móvel</button>
+      <button class="tab" data-tab="modulos" role="tab">Módulos</button>
+      <button class="tab" data-tab="corte" role="tab">Corte</button>
     </nav>
 
     <div class="pane is-active" id="pane-areas">
@@ -68,12 +75,29 @@
         <label for="luxSel">Ambiente (lux recomendado)</label>
         <select id="luxSel"></select>
       </div>
+      <button class="btn block" id="btnMapa">Ocultar mapa de luz</button>
       <div id="luzResumo"></div>
       <p class="muted small" style="margin:14px 0 6px"><b>Luz principal</b> — ilumina o ambiente todo</p>
       <div class="catalog" id="luzCatPrincipal"></div>
       <p class="muted small" style="margin:14px 0 6px"><b>Complementar</b> — spots, downlights, fita, arandela</p>
       <div class="catalog" id="luzCatSpot"></div>
       <ul class="item-list" id="luzList"></ul>
+    </div>
+
+    <div class="pane" id="pane-moveis">
+      <button class="btn btn-primary block" id="btnNovoMovel">+ Novo móvel</button>
+      <ul class="area-list" id="movelList"></ul>
+      <div id="movelForm"></div>
+    </div>
+
+    <div class="pane" id="pane-modulos">
+      <div id="modulosForm"></div>
+    </div>
+
+    <div class="pane" id="pane-corte">
+      <div id="corteResumo"></div>
+      <button class="btn btn-primary block" id="btnExportMovel">Exportar projeto para o marceneiro (PNG)</button>
+      <div id="corteTabela"></div>
     </div>
 
     <div class="pane" id="pane-props">
@@ -87,6 +111,10 @@
 
     <div class="stage-head">
       <div class="area-chip" id="areaChip">—</div>
+      <div class="viewswitch" id="secSwitch">
+        <button data-sec="amb" class="is-on">Ambientes</button>
+        <button data-sec="mob">Marcenaria</button>
+      </div>
       <div class="viewswitch" id="viewSwitch">
         <button data-mode="plan" class="is-on">Planta</button>
         <button data-mode="front">Vista frontal</button>
@@ -95,6 +123,10 @@
         <button id="wallPrev" aria-label="Parede anterior">‹</button>
         <span id="wallName">Parede superior</span>
         <button id="wallNext" aria-label="Próxima parede">›</button>
+      </div>
+      <div class="viewswitch" id="mobSwitch" hidden>
+        <button data-mob="frente" class="is-on">Frente</button>
+        <button data-mob="3d">3D</button>
       </div>
     </div>
 
@@ -221,6 +253,10 @@
 <script src="js/geometry.js"></script>
 <script src="js/presets.js"></script>
 <script src="js/store.js"></script>
+<script src="js/lightmap.js"></script>
+<script src="js/marcenaria.js"></script>
+<script src="js/download.js"></script>
+<script src="js/exportar.js"></script>
 <script src="js/renderer.js"></script>
 <script src="js/elevation.js"></script>
 <script src="js/editor.js"></script>

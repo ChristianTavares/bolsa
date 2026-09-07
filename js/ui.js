@@ -47,9 +47,27 @@ App.UI = (function () {
     });
   }
 
+  let secao = 'amb';   // 'amb' = ambientes | 'mob' = marcenaria
+
+  const GRUPO = {
+    areas: 'amb', add: 'amb', luz: 'amb', props: 'amb',
+    moveis: 'mob', modulos: 'mob', corte: 'mob',
+  };
+
   function setTab(name) {
+    if (GRUPO[name] && GRUPO[name] !== secao) return;   // aba de outra seção
     $$('.tab').forEach((t) => t.classList.toggle('is-active', t.dataset.tab === name));
     $$('.pane').forEach((p) => p.classList.toggle('is-active', p.id === 'pane-' + name));
+  }
+
+  function setSecao(sec) {
+    secao = sec === 'mob' ? 'mob' : 'amb';
+    $('#tabsAmb').hidden = secao !== 'amb';
+    $('#tabsMob').hidden = secao !== 'mob';
+    $$('#secSwitch button').forEach((b) => b.classList.toggle('is-on', b.dataset.sec === secao));
+    if (secao === 'mob') { E.setMode('mob'); setTab('moveis'); }
+    else { E.setMode('plan'); setTab('areas'); }
+    render();
   }
   const isMobile = () => window.matchMedia('(max-width:820px)').matches;
   function openPanel(open) {
@@ -210,6 +228,8 @@ App.UI = (function () {
   function renderLuz() {
     const a = S.activeArea();
     if (!a) return;
+    const bt = $('#btnMapa');
+    if (bt) bt.textContent = E.mapaLuz ? 'Ocultar mapa de luz' : 'Mostrar mapa de luz';
     const sel = $('#luxSel');
     if (!sel.options.length) {
       sel.innerHTML = App.presets.ambientes
@@ -218,6 +238,7 @@ App.UI = (function () {
     if (document.activeElement !== sel) sel.value = a.tipo;
 
     const L = S.luz(a);
+    const mapa = App.lightmap.calc(a);
     const pct = L.alvo ? Math.min(100, Math.round((L.total / L.alvo) * 100)) : 0;
     const falta = Math.max(0, L.alvo - L.total);
     const spots = Math.ceil(falta / 600);
@@ -237,6 +258,15 @@ App.UI = (function () {
         <hr>
         <div class="luz-linha"><span>Principal (${nP})</span><b>${lm(L.principal)}</b></div>
         <div class="luz-linha"><span>Complementar (${nS})</span><b>${lm(L.spot)}</b></div>
+        <div class="luz-linha"><span>Consumo</span><b>${L.watts} W</b></div>
+        ${mapa.luzes ? `<hr>
+        <div class="luz-linha"><span>Média no plano de 0,75 m</span><b>${Math.round(mapa.media)} lux</b></div>
+        <div class="luz-linha"><span>Ponto mais escuro</span><b>${Math.round(mapa.min)} lux</b></div>
+        <div class="luz-linha"><span>Uniformidade</span><b>${G.num(mapa.u0)}</b></div>
+        <p class="luz-msg ${mapa.u0 >= 0.4 ? 'ok' : 'falta'}">${mapa.u0 >= 0.4
+          ? 'Distribuição equilibrada — sem buraco de sombra.'
+          : 'Luz concentrada: sobra num ponto e falta em outro. Espalhe as luminárias ou abra o facho.'}</p>
+        <p class="muted small" style="margin:6px 0 0">Valores de luz direta, sem contar a reflexão das paredes.</p>` : ''}
         ${L.principal < L.alvo * 0.6 && L.total > 0
           ? '<p class="luz-msg falta">A luz principal sozinha está abaixo de 60% do alvo — com os spots desligados o ambiente fica escuro.</p>'
           : ''}
@@ -265,6 +295,169 @@ App.UI = (function () {
           </span>
         </li>`).join('')
       : '<li class="muted small" style="padding:10px 2px">Nenhuma luminária ainda. Escolha uma acima — ela entra no teto, no centro da tela.</li>';
+  }
+
+  /* ---------- marcenaria ---------- */
+  function renderMovel() {
+    if (secao !== 'mob') return;
+    const p = S.get(), m = S.activeMovel();
+    $('#movelList').innerHTML = p.moveis.map((x) => `
+      <li class="area-item ${x.id === p.movelId ? 'is-active' : ''}" data-id="${x.id}">
+        <span class="area-swatch" style="background:${esc(x.cor)}"></span>
+        <span class="area-info">
+          <b>${esc(x.nome)}</b>
+          <span>${G.num(x.w)} × ${G.num(x.d)} × ${G.num(x.h)} m · ${x.modulos.length} módulos</span>
+        </span>
+        <span class="area-acts">
+          <button class="mini danger" data-act="del" title="Excluir móvel">🗑</button>
+        </span>
+      </li>`).join('');
+    if (!m) { $('#movelForm').innerHTML = ''; return; }
+
+    const chave = 'movel:' + m.id;
+    if ($('#movelForm').dataset.chave !== chave) {
+      $('#movelForm').dataset.chave = chave;
+      $('#movelForm').innerHTML = `
+        <hr>
+        <div class="field"><label for="mNome">Nome</label><input id="mNome" value="${esc(m.nome)}"></div>
+        <div class="row">${fieldNum('mW', 'Largura (m)', G.num(m.w))}${fieldNum('mD', 'Profundidade (m)', G.num(m.d))}</div>
+        <div class="row">${fieldNum('mH', 'Altura (m)', G.num(m.h))}${fieldNum('mR', 'Rodapé (m)', G.num(m.rodape))}</div>
+        <div class="row">${fieldNum('mE', 'Chapa (mm)', App.marcenaria.mm(m.esp))}
+          <div class="field"><label for="mCor">Cor</label><input id="mCor" type="color" value="${esc(m.cor)}"></div></div>
+        <div class="field"><label for="mObs">Recado para o marceneiro</label><input id="mObs" value="${esc(m.obs || '')}" placeholder="Ex.: MDF branco TX, puxador perfil"></div>
+        <p class="muted small">De ponta a ponta: use a largura livre da parede. Na aba <b>Módulos</b> você divide o móvel em prateleiras, gavetas, cabideiro e portas.</p>`;
+      wireMovel(m);
+    } else {
+      setVal('mNome', m.nome); setVal('mW', G.num(m.w)); setVal('mD', G.num(m.d));
+      setVal('mH', G.num(m.h)); setVal('mR', G.num(m.rodape));
+      setVal('mE', App.marcenaria.mm(m.esp)); setVal('mObs', m.obs || '');
+    }
+  }
+
+  function wireMovel(m) {
+    const M = App.marcenaria;
+    const txt = (id, ap) => {
+      const el = document.getElementById(id);
+      el.addEventListener('change', () => { S.update(() => ap(el.value)); E.draw(); });
+    };
+    const num = (id, ap) => {
+      const el = document.getElementById(id);
+      el.addEventListener('change', () => {
+        const v = G.parseNum(el.value);
+        if (!Number.isFinite(v)) { renderMovel(); return; }
+        S.update(() => { ap(v); M.redistribuir(m); });
+        E.fit(); render();
+      });
+    };
+    txt('mNome', (v) => { m.nome = v.trim() || 'Móvel'; });
+    txt('mObs', (v) => { m.obs = v; });
+    document.getElementById('mCor').addEventListener('input', (ev) =>
+      S.update(() => { m.cor = ev.target.value; }));
+    num('mW', (v) => { m.w = G.clamp(v, 0.3, 8); });
+    num('mD', (v) => { m.d = G.clamp(v, 0.15, 1.2); });
+    num('mH', (v) => { m.h = G.clamp(v, 0.3, 3.2); });
+    num('mR', (v) => { m.rodape = G.clamp(v, 0, 0.4); });
+    num('mE', (v) => { m.esp = G.clamp(v / 1000, 0.006, 0.05); });
+  }
+
+  function renderModulos() {
+    if (secao !== 'mob') return;
+    const M = App.marcenaria, m = S.activeMovel();
+    if (!m) return;
+    const vao = M.vaoTotal(m);
+    const box = $('#modulosForm');
+    const chave = 'mod:' + m.id + ':' + m.modulos.map((x) => x.id + x.tipo + x.qtd + x.portas + x.larg).join(',')
+      + ':' + E.selModulo;
+    if (box.dataset.chave === chave) return;
+    box.dataset.chave = chave;
+
+    box.innerHTML = `
+      <p class="muted small">Vão livre total: <b>${G.m(vao)}</b> em ${m.modulos.length} módulo${m.modulos.length > 1 ? 's' : ''}.
+      Mudar a largura de um módulo redistribui o resto.</p>
+      <div class="prop-actions">
+        <button class="btn" data-act="addmod">+ Módulo</button>
+        <button class="btn" data-act="distribuir">Distribuir igualmente</button>
+      </div>
+      ${m.modulos.map((mo, i) => `
+        <div class="mod-card ${mo.id === E.selModulo ? 'is-active' : ''}" data-mod="${mo.id}">
+          <div class="prop-head">
+            <span class="badge">Módulo ${i + 1}</span>
+            <span class="grow"></span>
+            ${m.modulos.length > 1 ? `<button class="mini danger" data-act="delmod" data-i="${i}" title="Excluir módulo">🗑</button>` : ''}
+          </div>
+          <div class="field"><label for="md-t-${i}">Conteúdo</label>
+            <select id="md-t-${i}" data-i="${i}" data-campo="tipo">
+              ${Object.entries(M.TIPOS).map(([k, v]) =>
+                `<option value="${k}" ${mo.tipo === k ? 'selected' : ''}>${v}</option>`).join('')}
+            </select></div>
+          <div class="row">
+            ${fieldNum('md-l-' + i, 'Largura (m)', G.num(mo.larg))}
+            ${mo.tipo === 'prateleiras' || mo.tipo === 'gavetas'
+              ? fieldNum('md-q-' + i, mo.tipo === 'gavetas' ? 'Gavetas' : 'Prateleiras', mo.qtd)
+              : '<div class="field"></div>'}
+          </div>
+          <div class="field"><label for="md-p-${i}">Portas</label>
+            <select id="md-p-${i}" data-i="${i}" data-campo="portas">
+              <option value="0" ${mo.portas === 0 ? 'selected' : ''}>Sem porta (aberto)</option>
+              <option value="1" ${mo.portas === 1 ? 'selected' : ''}>1 folha</option>
+              <option value="2" ${mo.portas === 2 ? 'selected' : ''}>2 folhas</option>
+            </select></div>
+        </div>`).join('')}`;
+
+    m.modulos.forEach((mo, i) => {
+      const sel = (campo) => {
+        const el = document.getElementById('md-' + (campo === 'tipo' ? 't' : 'p') + '-' + i);
+        el.addEventListener('change', () => {
+          S.update(() => {
+            if (campo === 'tipo') {
+              mo.tipo = el.value;
+              if (mo.tipo === 'gavetas' && !mo.qtd) mo.qtd = 4;
+              if (mo.tipo === 'prateleiras' && !mo.qtd) mo.qtd = 4;
+            } else mo.portas = +el.value;
+          });
+          E.draw(); render();
+        });
+      };
+      sel('tipo'); sel('portas');
+      const larg = document.getElementById('md-l-' + i);
+      larg.addEventListener('change', () => {
+        const v = G.parseNum(larg.value);
+        if (!Number.isFinite(v)) { render(); return; }
+        S.update(() => App.marcenaria.ajustarLargura(m, i, v));
+        E.draw(); render();
+      });
+      const q = document.getElementById('md-q-' + i);
+      if (q) q.addEventListener('change', () => {
+        const v = Math.round(G.parseNum(q.value));
+        if (!Number.isFinite(v)) { render(); return; }
+        S.update(() => { mo.qtd = G.clamp(v, 0, 12); });
+        E.draw(); render();
+      });
+    });
+  }
+
+  function renderCorte() {
+    if (secao !== 'mob') return;
+    const M = App.marcenaria, m = S.activeMovel();
+    if (!m) return;
+    const pecas = M.planoDeCorte(m);
+    const chapa = M.areaChapa(pecas);
+    $('#corteResumo').innerHTML = `
+      <div class="luz-card">
+        <div class="luz-linha"><span>Móvel</span><b>${esc(m.nome)}</b></div>
+        <div class="luz-linha"><span>Medidas (L × P × A)</span><b>${G.num(m.w)} × ${G.num(m.d)} × ${G.num(m.h)} m</b></div>
+        <div class="luz-linha"><span>Peças</span><b>${pecas.reduce((t, p) => t + p.qtd, 0)}</b></div>
+        <div class="luz-linha"><span>Chapa (sem perdas)</span><b>${G.num(chapa)} m²</b></div>
+      </div>
+      <p class="muted small">O PNG sai com a vista de frente cotada, o 3D e esta tabela — é o que o marceneiro precisa para orçar.</p>`;
+    $('#corteTabela').innerHTML = `
+      <table class="corte">
+        <thead><tr><th>Peça</th><th>Larg.</th><th>Alt.</th><th>Qtd</th></tr></thead>
+        <tbody>${pecas.map((p) => `
+          <tr><td>${esc(p.nome)}<span class="mat">${esc(p.mat)}</span></td>
+              <td>${p.larg}</td><td>${p.alt}</td><td>${p.qtd}</td></tr>`).join('')}</tbody>
+      </table>
+      <p class="muted small">Medidas em milímetros.</p>`;
   }
 
   /* ---------- propriedades ---------- */
@@ -326,9 +519,28 @@ App.UI = (function () {
           <button type="button" data-act="luzkind" data-val="spot" class="${principal ? '' : 'is-on'}">Complementar</button>
         </div>
       </div>
-      <div class="row">${fieldNum('pLm', 'Lúmens (lm)', Math.round(it.lumens))}${fieldNum('pX', 'X (m)', G.num(it.x))}</div>
+      <div class="row">${fieldNum('pW', 'Potência (W)', Math.round(it.watts))}${fieldNum('pLm', 'Lúmens (lm)', Math.round(it.lumens))}</div>
+      <p class="muted small">Mudar os watts recalcula os lúmens pela eficiência atual (${Math.round(it.lumens / Math.max(1, it.watts))} lm/W) e vice-versa.</p>
+      <div class="field"><label for="pDim">Dimmer — ${it.dim}%</label>
+        <input id="pDim" type="range" min="10" max="100" step="5" value="${it.dim}"></div>
+      <div class="row">
+        <div class="field"><label for="pBeam">Abertura do facho</label>
+          <select id="pBeam">
+            ${[24, 38, 60, 90, 120, 160].map((b) =>
+              `<option value="${b}" ${it.beam === b ? 'selected' : ''}>${b}° ${b <= 38 ? '(spot fechado)' : b <= 60 ? '(dirigido)' : '(difuso)'}</option>`).join('')}
+          </select></div>
+        ${fieldNum('pAltL', 'Altura de instalação (m)', G.num(it.base))}
+      </div>
+      <div class="row">
+        <div class="field"><label for="pK">Temperatura</label>
+          <select id="pK">
+            ${[[2700, '2700 K — amarelada'], [3000, '3000 K — quente'], [4000, '4000 K — neutra'], [6500, '6500 K — fria']]
+              .map(([k, t]) => `<option value="${k}" ${it.k === k ? 'selected' : ''}>${t}</option>`).join('')}
+          </select></div>
+        ${fieldNum('pX', 'X (m)', G.num(it.x))}
+      </div>
       <div class="row">${fieldNum('pY', 'Y (m)', G.num(it.y))}<div class="field"></div></div>
-      <p class="muted small">O halo na planta mostra o alcance em que essa luminária sozinha entrega ${S.activeArea().lux} lux.</p>
+      <p class="muted small">O mapa na planta mostra onde essa luz de fato bate, no plano de 0,75 m. Facho fechado concentra; pendente mais baixo ilumina menos área.</p>
       <button class="btn btn-danger block" data-act="del">Excluir luminária</button>`;
     }
     if (it.type === 'line') {
@@ -424,7 +636,9 @@ App.UI = (function () {
       if (it.alt) { setVal('pAW', G.num(it.alt.w)); setVal('pAH', G.num(it.alt.h)); }
     } else if (it.type === 'light') {
       setVal('pName', it.name || '');
+      setVal('pW', Math.round(it.watts));
       setVal('pLm', Math.round(it.lumens));
+      setVal('pAltL', G.num(it.base));
       setVal('pX', G.num(it.x)); setVal('pY', G.num(it.y));
     } else if (it.type === 'line') {
       setVal('pLen', G.num(Math.hypot(it.x2 - it.x1, it.y2 - it.y1)));
@@ -479,9 +693,31 @@ App.UI = (function () {
     } else if (it.type === 'light') {
       const nm = document.getElementById('pName');
       nm.addEventListener('change', () => S.update(() => { it.name = nm.value.trim() || 'Luminária'; }));
-      onNum('pLm', (v) => { it.lumens = G.clamp(Math.round(v), 10, 20000); });
+      onNum('pW', (v) => {
+        const efic = it.lumens / Math.max(1, it.watts);
+        it.watts = G.clamp(Math.round(v), 1, 2000);
+        it.lumens = Math.round(it.watts * efic);
+      });
+      onNum('pLm', (v) => {
+        const efic = it.lumens / Math.max(1, it.watts);
+        it.lumens = G.clamp(Math.round(v), 10, 40000);
+        it.watts = Math.max(1, Math.round(it.lumens / Math.max(1, efic)));
+      });
+      onNum('pAltL', (v) => { it.base = G.clamp(v, 0.5, a.pd); });
       onNum('pX', (v) => { it.x = G.clamp(v, 0, a.w); });
       onNum('pY', (v) => { it.y = G.clamp(v, 0, a.h); });
+      const dim = document.getElementById('pDim');
+      dim.addEventListener('input', () => {
+        S.live(() => { it.dim = +dim.value; });
+        const lb = document.querySelector('label[for="pDim"]');
+        if (lb) lb.textContent = 'Dimmer — ' + it.dim + '%';
+        E.draw();
+      });
+      dim.addEventListener('change', () => S.update(() => { it.dim = +dim.value; }));
+      const beam = document.getElementById('pBeam');
+      beam.addEventListener('change', () => { S.update(() => { it.beam = +beam.value; }); E.draw(); });
+      const kk = document.getElementById('pK');
+      kk.addEventListener('change', () => S.update(() => { it.k = +kk.value; }));
     } else if (it.type === 'line') {
       onNum('pLen', (v) => {
         const ang = Math.atan2(it.y2 - it.y1, it.x2 - it.x1);
@@ -604,6 +840,9 @@ App.UI = (function () {
       renderAreas();
       renderItems();
       renderLuz();
+      renderMovel();
+      renderModulos();
+      renderCorte();
       renderProps();
       renderView();
       $('#btnUndo').disabled = !S.canUndo();
@@ -612,23 +851,28 @@ App.UI = (function () {
   }
 
   function renderView() {
-    const m = E.mode;
+    const m = E.mode, mob = m === 'mob';
     $$('#viewSwitch button').forEach((b) => b.classList.toggle('is-on', b.dataset.mode === m));
-    $('#wallNav').hidden = m !== 'front';
-    $('#toolbar').hidden = m === 'front';
+    $$('#mobSwitch button').forEach((b) => b.classList.toggle('is-on', b.dataset.mob === E.mobView));
+    $('#viewSwitch').hidden = mob;
+    $('#mobSwitch').hidden = !mob;
+    $('#wallNav').hidden = mob || m !== 'front';
+    $('#toolbar').hidden = mob || m === 'front';
     if (m === 'front') $('#wallName').textContent = 'Parede ' + App.elev.NOMES[E.frontWall];
+    const mv = S.activeMovel(), ar = S.activeArea();
+    if (mob && mv) {
+      $('#areaChip').textContent = `${mv.nome} · ${G.num(mv.w)} × ${G.num(mv.d)} × ${G.num(mv.h)} m`;
+    } else if (!mob && ar) {
+      $('#areaChip').textContent = `${ar.name} · ${G.num(ar.w)} × ${G.num(ar.h)} m · ${G.m2(ar.w * ar.h)}`;
+    }
   }
 
   /* ---------- import / export ---------- */
   function exportJSON() {
-    const blob = new Blob([JSON.stringify(S.get(), null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = (S.get().name || 'planta').replace(/\s+/g, '-').toLowerCase() + '.json';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    toast('Projeto exportado');
+    const nome = (S.get().name || 'planta').replace(/\s+/g, '-').toLowerCase() + '.json';
+    App.baixar(nome, JSON.stringify(S.get(), null, 2)).then((r) => {
+      toast(r === 'salvo' ? 'Projeto exportado' : r === 'recusado' ? 'Download cancelado' : 'Não consegui salvar');
+    });
   }
 
   function importJSON(file) {
@@ -717,6 +961,8 @@ App.UI = (function () {
       setTab('props');
     });
 
+    $('#btnMapa').addEventListener('click', () => { E.setMapaLuz(!E.mapaLuz); render(); });
+
     $('#luxSel').addEventListener('change', () => {
       const amb = App.presets.ambientes.find((x) => x.nome === $('#luxSel').value);
       if (!amb) return;
@@ -735,6 +981,76 @@ App.UI = (function () {
     });
     $('#wallPrev').addEventListener('click', () => E.girarParede(-1));
     $('#wallNext').addEventListener('click', () => E.girarParede(1));
+
+    $('#secSwitch').addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-sec]');
+      if (!b) return;
+      setSecao(b.dataset.sec);
+      if (b.dataset.sec === 'mob') hint('Móvel sob medida: dimensões na aba Móvel, divisões na aba Módulos');
+    });
+    $('#mobSwitch').addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-mob]');
+      if (!b) return;
+      E.setMovelView(b.dataset.mob);
+      if (b.dataset.mob === '3d') hint('Arraste para girar o móvel');
+    });
+
+    $('#btnNovoMovel').addEventListener('click', () => {
+      const novo = App.marcenaria.novoMovel(S.uid());
+      novo.nome = 'Móvel ' + (S.get().moveis.length + 1);
+      S.update((p) => { p.moveis.push(novo); p.movelId = novo.id; });
+      E.fit();
+      toast('Móvel criado');
+    });
+
+    $('#movelList').addEventListener('click', async (ev) => {
+      const li = ev.target.closest('.area-item');
+      if (!li) return;
+      const id = li.dataset.id;
+      const act = ev.target.closest('[data-act]');
+      if (act && act.dataset.act === 'del') {
+        if (S.get().moveis.length === 1) { toast('Mantenha ao menos um móvel'); return; }
+        const alvo = S.get().moveis.find((x) => x.id === id);
+        if (await confirmDlg('Excluir móvel', `Excluir "${alvo.nome}"?`)) {
+          S.update((p) => {
+            p.moveis = p.moveis.filter((x) => x.id !== id);
+            if (p.movelId === id) p.movelId = p.moveis[0].id;
+          });
+          E.fit();
+        }
+        return;
+      }
+      S.update((p) => { p.movelId = id; });
+      E.selecionarModulo(null);
+      E.fit();
+    });
+
+    $('#modulosForm').addEventListener('click', (ev) => {
+      const m = S.activeMovel();
+      const act = ev.target.closest('[data-act]');
+      if (act) {
+        const a = act.dataset.act;
+        if (a === 'addmod') {
+          S.update(() => {
+            m.modulos.push({ id: S.uid(), larg: 0.4, tipo: 'prateleiras', qtd: 4, portas: 0 });
+            App.marcenaria.redistribuir(m);
+          });
+        }
+        if (a === 'distribuir') S.update(() => App.marcenaria.redistribuir(m));
+        if (a === 'delmod') {
+          S.update(() => {
+            m.modulos.splice(+act.dataset.i, 1);
+            App.marcenaria.redistribuir(m);
+          });
+        }
+        E.draw(); render();
+        return;
+      }
+      const card = ev.target.closest('.mod-card');
+      if (card && !ev.target.closest('input,select')) E.selecionarModulo(card.dataset.mod);
+    });
+
+    $('#btnExportMovel').addEventListener('click', () => E.exportPNG());
 
     $('#catFilter').addEventListener('change', renderCatalog);
     $('#catalog').addEventListener('click', (ev) => {
@@ -778,7 +1094,9 @@ App.UI = (function () {
       if (!b) return;
       menu.hidden = true;
       const act = b.dataset.act;
-      if (act === 'png') { E.exportPNG(); toast('Imagem gerada'); }
+      if (act === 'png') E.exportPNG();
+      if (act === 'areas-png') App.exportar.areas(S.get(), toast);
+      if (act === 'areas-csv') App.exportar.csvAreas(S.get(), toast);
       if (act === 'export') exportJSON();
       if (act === 'import') $('#fileInput').click();
       if (act === 'reset') {
@@ -800,17 +1118,20 @@ App.UI = (function () {
     try { return window.top !== window.self; } catch (e) { return true; }
   })();
 
-  function adaptMenu() {
+  async function adaptMenu() {
     if (!embedded) return;
-    ['png', 'export', 'import'].forEach((act) => {
+    if (await App.baixar.disponivel()) return;   // o visualizador aceita downloads
+    ['png', 'areas-png', 'areas-csv', 'export', 'import'].forEach((act) => {
       const b = document.querySelector('#moreMenu [data-act="' + act + '"]');
       if (b) b.hidden = true;
     });
+    const btn = $('#btnExportMovel');
+    if (btn) btn.hidden = true;
     const note = document.createElement('p');
     note.className = 'muted small';
     note.style.padding = '8px 12px';
     note.style.margin = '0';
-    note.textContent = 'Salvar PNG e exportar .json só funcionam com o site aberto em aba própria.';
+    note.textContent = 'Exportar arquivos só funciona com o site aberto em aba própria.';
     $('#moreMenu').insertBefore(note, $('#moreMenu').firstChild);
   }
 
@@ -828,5 +1149,5 @@ App.UI = (function () {
     return t ? t.dataset.tab : 'areas';
   };
 
-  return { init, render, toast, hint, setTab, isMobile, openPanel, activeTab };
+  return { init, render, toast, hint, setTab, setSecao, isMobile, openPanel, activeTab };
 })();

@@ -89,18 +89,19 @@ App.presets = (function () {
 
   /* Luminárias: lúmens típicos de produtos de prateleira. */
   const luzes = [
-    { kind: 'principal', nome: 'Plafon LED 18 W', lumens: 1600 },
-    { kind: 'principal', nome: 'Plafon LED 24 W', lumens: 2200 },
-    { kind: 'principal', nome: 'Plafon LED 36 W', lumens: 3200 },
-    { kind: 'principal', nome: 'Pendente LED 12 W', lumens: 1100 },
-    { kind: 'principal', nome: 'Lustre 5 × E27', lumens: 3000 },
-    { kind: 'spot', nome: 'Spot LED 7 W', lumens: 600 },
-    { kind: 'spot', nome: 'Downlight 12 W', lumens: 1050 },
-    { kind: 'spot', nome: 'Downlight 18 W', lumens: 1600 },
-    { kind: 'spot', nome: 'Fita LED 5 m', lumens: 1500 },
-    { kind: 'spot', nome: 'Arandela 6 W', lumens: 450 },
-    { kind: 'spot', nome: 'Abajur 8 W', lumens: 700 },
-    { kind: 'spot', nome: 'Luminária de piso 15 W', lumens: 1300 },
+    { kind: 'principal', nome: 'Plafon LED 18 W', lumens: 1600, watts: 18, beam: 120, k: 4000 },
+    { kind: 'principal', nome: 'Plafon LED 24 W', lumens: 2200, watts: 24, beam: 120, k: 4000 },
+    { kind: 'principal', nome: 'Plafon LED 36 W', lumens: 3200, watts: 36, beam: 120, k: 4000 },
+    { kind: 'principal', nome: 'Pendente LED 12 W', lumens: 1100, watts: 12, beam: 90, k: 3000, altura: 1.90 },
+    { kind: 'principal', nome: 'Lustre 5 × E27', lumens: 3000, watts: 45, beam: 120, k: 2700, altura: 2.20 },
+    { kind: 'spot', nome: 'Spot LED 7 W', lumens: 600, watts: 7, beam: 38, k: 3000 },
+    { kind: 'spot', nome: 'Spot fechado 7 W', lumens: 600, watts: 7, beam: 24, k: 3000 },
+    { kind: 'spot', nome: 'Downlight 12 W', lumens: 1050, watts: 12, beam: 60, k: 4000 },
+    { kind: 'spot', nome: 'Downlight 18 W', lumens: 1600, watts: 18, beam: 60, k: 4000 },
+    { kind: 'spot', nome: 'Fita LED 5 m', lumens: 1500, watts: 24, beam: 120, k: 3000, altura: 2.40 },
+    { kind: 'spot', nome: 'Arandela 6 W', lumens: 450, watts: 6, beam: 90, k: 2700, altura: 1.80 },
+    { kind: 'spot', nome: 'Abajur 8 W', lumens: 700, watts: 8, beam: 120, k: 2700, altura: 1.40 },
+    { kind: 'spot', nome: 'Luminária de piso 15 W', lumens: 1300, watts: 15, beam: 90, k: 3000, altura: 1.60 },
   ];
 
   /* Lux recomendado por ambiente (referência ABNT NBR ISO/CIE 8995-1). */

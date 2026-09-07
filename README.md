@@ -44,12 +44,25 @@ e sem servidor.
   posicione luminárias separadas em **principal** (plafon, pendente, lustre) e
   **complementar** (spot, downlight, fita, arandela, abajur). O painel soma os lúmens
   instalados, compara com o alvo (área × lux), mostra os lux resultantes e diz quanto falta
-  — inclusive um aviso quando a luz principal sozinha não segura o ambiente. Na planta cada
-  luminária desenha o halo em que ela entrega o lux alvo.
+  — inclusive um aviso quando a luz principal sozinha não segura o ambiente.
+- **Mapa de onde a luz bate**: a planta é pintada com a iluminância calculada no plano de
+  0,75 m, luminária por luminária (`E = I · cos³θ / h²`, com o ângulo sólido do facho), em
+  escala falsecolor relativa ao lux do ambiente. O painel mostra a média, o ponto mais
+  escuro e a uniformidade — é onde se vê o buraco de sombra entre dois spots.
+- **Luminária editável**: potência em watts (os lúmens acompanham pela eficiência atual),
+  lúmens, dimmer, abertura do facho (24° a 160°), altura de instalação (pendente mais baixo
+  ilumina menos área) e temperatura de cor.
+- **Marcenaria**: seção separada para desenhar um móvel sob medida de ponta a ponta —
+  largura, profundidade, altura, rodapé e espessura da chapa, dividido em módulos de
+  prateleiras, gavetas, cabideiro ou nicho, com portas de uma ou duas folhas. Tem vista de
+  frente cotada e **3D** que gira com o dedo, e gera o **plano de corte** em milímetros. O
+  PNG de exportação junta os três — é o que dá para mandar pro marceneiro orçar.
 - **Cotas e escala**: largura e profundidade cotadas fora do desenho, barra de escala e
   malha de 0,5 m / 1 m no fundo.
-- **Salvar**: tudo fica no navegador (localStorage). Dá para exportar/importar o projeto
-  em `.json` e salvar a planta do cômodo em `.png`.
+- **Salvar e exportar**: tudo fica no navegador (localStorage). Dá para exportar/importar o
+  projeto em `.json`, salvar a vista atual em `.png`, gerar uma **prancha com todas as
+  áreas** em um PNG só e baixar a **lista de áreas em CSV** (medidas, m², pé-direito,
+  ambiente, lux alvo, lúmens instalados e contagem de móveis, portas e janelas).
 - **Desfazer/refazer** em tudo (botões na barra de cima, `Ctrl/Cmd+Z` e `Ctrl/Cmd+Shift+Z`).
 
 ## Como usar
@@ -113,6 +126,10 @@ js/presets.js       catálogo de móveis com medidas reais
 js/store.js         estado do projeto, localStorage, desfazer/refazer
 js/renderer.js      desenho da planta no canvas (paredes, cotas, móveis, portas, luz)
 js/elevation.js     desenho da vista frontal (projeção dos móveis numa parede)
+js/lightmap.js      cálculo e pintura da iluminância no plano de trabalho
+js/marcenaria.js    móvel sob medida: modelo, vista cotada, 3D e plano de corte
+js/exportar.js      prancha das áreas, projeto do móvel e planilha CSV
+js/download.js      salvar arquivos (capability do Artifact ou link do navegador)
 js/editor.js        vista (zoom/pan), gestos de toque e mouse, edição dos itens
 js/ui.js            painéis, formulários, catálogo, menus, importar/exportar
 js/app.js           inicialização

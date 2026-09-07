@@ -261,7 +261,8 @@ App.render = (function () {
 
   /* Raio, em metros, em que a luminária sozinha entrega o lux alvo do ambiente. */
   function raioLuz(it, lux) {
-    return G.clamp(Math.sqrt(it.lumens / (Math.max(50, lux) * Math.PI)), 0.35, 6);
+    const fl = it.lumens * ((it.dim == null ? 100 : it.dim) / 100);
+    return G.clamp(Math.sqrt(fl / (Math.max(50, lux) * Math.PI)), 0.35, 6);
   }
 
   function drawGlow(ctx, area, it, v, X, Y) {
@@ -305,7 +306,11 @@ App.render = (function () {
       ctx.lineWidth = 1.5;
       ctx.stroke();
     }
-    if (selected) pill(ctx, it.name + ' · ' + it.lumens + ' lm', sx, sy - r - 14, '#8a5c05');
+    if (selected) {
+      const dim = (it.dim == null ? 100 : it.dim);
+      pill(ctx, it.watts + ' W · ' + Math.round(it.lumens * dim / 100) + ' lm'
+        + (dim < 100 ? ' · ' + dim + '%' : ''), sx, sy - r - 14, '#8a5c05');
+    }
   }
 
   function drawHandles(ctx, handles) {
@@ -399,9 +404,12 @@ App.render = (function () {
     ctx.fillStyle = C.floor;
     ctx.fillRect(X(0), Y(0), area.w * v.scale, area.h * v.scale);
 
-    // brilho das luminárias, no piso e por baixo dos móveis
+    // onde a luz bate: mapa de iluminância por baixo dos móveis
     const luzes = area.items.filter((i) => i.type === 'light');
-    if (luzes.length) {
+    const comMapa = luzes.length && o.mapaLuz !== false;
+    if (comMapa) {
+      App.lightmap.pintar(ctx, area, v, X, Y);
+    } else if (luzes.length) {
       ctx.save();
       ctx.beginPath();
       ctx.rect(X(0), Y(0), area.w * v.scale, area.h * v.scale);
@@ -435,6 +443,8 @@ App.render = (function () {
     const t = area.wall;
     dimension(ctx, X(0), Y(-t) - 26, X(area.w), Y(-t) - 26, G.m(area.w), C.dim);
     dimension(ctx, X(-t) - 26, Y(0), X(-t) - 26, Y(area.h), G.m(area.h), C.dim);
+
+    if (comMapa && o.legenda !== false) App.lightmap.legenda(ctx, area, W, H);
 
     let handles = [];
     if (!o.exportMode) {

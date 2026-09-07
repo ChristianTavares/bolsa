@@ -44,7 +44,8 @@ App.elev = (function () {
         out.push({ it, s1: r.s1, s2: r.s2, d: Math.max(0, r.d), z1: it.base, z2: it.base + it.altura });
       } else if (it.type === 'light') {
         const p = sPoint(area, wall, it.x, it.y);
-        out.push({ it, s1: p.s - 0.12, s2: p.s + 0.12, d: Math.max(0, p.d), z1: area.pd - 0.1, z2: area.pd, luz: true });
+        const z = it.base > 0 ? it.base : area.pd;
+        out.push({ it, s1: p.s - 0.12, s2: p.s + 0.12, d: Math.max(0, p.d), z1: z - 0.1, z2: z, luz: true });
       }
     });
     return out.sort((a, b) => b.d - a.d);
@@ -132,12 +133,20 @@ App.elev = (function () {
       if (p.luz) {
         ctx.globalAlpha = Math.max(.5, ctx.globalAlpha);
         ctx.beginPath();
-        ctx.arc(x + w / 2, Y(area.pd) + 7, p.it.kind === 'principal' ? 9 : 6, 0, Math.PI * 2);
+        ctx.arc(x + w / 2, Y(p.z2) + 7, p.it.kind === 'principal' ? 9 : 6, 0, Math.PI * 2);
         ctx.fillStyle = p.it.kind === 'principal' ? '#ffd76e' : '#f0b429';
         ctx.fill();
         ctx.strokeStyle = sel ? C.brand : '#a9761a';
         ctx.lineWidth = sel ? 3 : 1.5;
         ctx.stroke();
+        if (p.z2 < area.pd - 0.05) {          // pendente: desenha o fio até o teto
+          ctx.beginPath();
+          ctx.moveTo(x + w / 2, Y(area.pd));
+          ctx.lineTo(x + w / 2, Y(p.z2));
+          ctx.strokeStyle = '#a9761a';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
         ctx.restore();
         return;
       }

@@ -44,6 +44,11 @@ App.Store = (function () {
         i.kind = i.kind === 'principal' ? 'principal' : 'spot';
         i.name = i.name || (i.kind === 'principal' ? 'Luz principal' : 'Spot');
         i.lumens = +i.lumens > 0 ? +i.lumens : 600;
+        i.watts = +i.watts > 0 ? +i.watts : Math.round(i.lumens / 90);
+        i.dim = +i.dim >= 0 && +i.dim <= 100 ? +i.dim : 100;
+        i.beam = +i.beam > 0 ? Math.min(170, +i.beam) : 120;
+        i.k = +i.k > 0 ? +i.k : 4000;
+        i.base = +i.base > 0 ? +i.base : a.pd;   // altura de instalação
         i.x = +i.x || 0; i.y = +i.y || 0;
       }
       if (i.type === 'furniture') {
@@ -62,6 +67,32 @@ App.Store = (function () {
     return a;
   }
 
+  function normalizeMovel(m) {
+    const M = App.marcenaria;
+    const base = M.novoMovel(m.id || uid());
+    const out = Object.assign(base, {
+      id: m.id || base.id,
+      nome: m.nome || base.nome,
+      w: +m.w > 0 ? +m.w : base.w,
+      d: +m.d > 0 ? +m.d : base.d,
+      h: +m.h > 0 ? +m.h : base.h,
+      rodape: +m.rodape >= 0 ? +m.rodape : base.rodape,
+      esp: +m.esp > 0 ? +m.esp : base.esp,
+      cor: m.cor || base.cor,
+      obs: m.obs || '',
+    });
+    if (Array.isArray(m.modulos) && m.modulos.length) {
+      out.modulos = m.modulos.map((mo, i) => ({
+        id: mo.id || uid() + i,
+        larg: +mo.larg > 0 ? +mo.larg : 0.6,
+        tipo: M.TIPOS[mo.tipo] ? mo.tipo : 'prateleiras',
+        qtd: Math.max(0, Math.min(12, Math.round(+mo.qtd || 0))),
+        portas: Math.max(0, Math.min(2, Math.round(+mo.portas || 0))),
+      }));
+    }
+    return out;
+  }
+
   function normalize(p) {
     if (!p || typeof p !== 'object') return projetoExemplo();
     const out = {
@@ -69,7 +100,11 @@ App.Store = (function () {
       name: p.name || 'Meu apartamento',
       areas: (Array.isArray(p.areas) ? p.areas : []).map(normalizeArea),
       activeId: p.activeId || null,
+      moveis: (Array.isArray(p.moveis) ? p.moveis : []).map(normalizeMovel),
+      movelId: p.movelId || null,
     };
+    if (!out.moveis.length) out.moveis = [App.marcenaria.novoMovel(uid())];
+    if (!out.moveis.some((m) => m.id === out.movelId)) out.movelId = out.moveis[0].id;
     if (!out.areas.length) return Object.assign(out, { areas: projetoExemplo().areas });
     if (!out.areas.some((a) => a.id === out.activeId)) out.activeId = out.areas[0].id;
     return out;
@@ -90,10 +125,11 @@ App.Store = (function () {
   function load() {
     let raw = null;
     try { raw = localStorage.getItem(KEY); } catch (e) { /* ignore */ }
-    if (raw) {
-      try { project = normalize(JSON.parse(raw)); } catch (e) { project = projetoExemplo(); }
-    } else {
-      project = projetoExemplo();
+    // sempre pelo normalize: é ele que preenche os campos novos
+    try {
+      project = normalize(raw ? JSON.parse(raw) : projetoExemplo());
+    } catch (e) {
+      project = normalize(projetoExemplo());
     }
     past = []; future = [];
     persist();
@@ -149,17 +185,20 @@ App.Store = (function () {
 
   const get = () => project;
   const activeArea = () => project.areas.find((a) => a.id === project.activeId) || project.areas[0];
+  const activeMovel = () => project.moveis.find((m) => m.id === project.movelId) || project.moveis[0];
   const findItem = (id) => { const a = activeArea(); return a && a.items.find((i) => i.id === id); };
   const totalArea = () => project.areas.reduce((s, a) => s + a.w * a.h, 0);
 
   /* Resumo de iluminação de uma área. */
   function luz(a) {
     const lista = a.items.filter((i) => i.type === 'light');
-    const soma = (k) => lista.filter((i) => i.kind === k).reduce((t, i) => t + i.lumens, 0);
+    const efetivo = (i) => i.lumens * ((i.dim == null ? 100 : i.dim) / 100);
+    const soma = (k) => lista.filter((i) => i.kind === k).reduce((t, i) => t + efetivo(i), 0);
     const principal = soma('principal'), spot = soma('spot');
     const m2 = a.w * a.h;
+    const watts = lista.reduce((t, i) => t + (+i.watts || 0), 0);
     return {
-      lista, principal, spot, total: principal + spot,
+      lista, principal, spot, total: principal + spot, watts,
       m2, alvo: a.lux * m2, lux: m2 ? (principal + spot) / m2 : 0,
     };
   }
@@ -168,7 +207,7 @@ App.Store = (function () {
 
   return {
     uid, load, get, update, begin, live, commit, cancelTx, undo, redo, replace,
-    subscribe, activeArea, findItem, totalArea, projetoExemplo, luz,
+    subscribe, activeArea, activeMovel, findItem, totalArea, projetoExemplo, luz,
     canUndo: () => past.length > 0,
     canRedo: () => future.length > 0,
   };
