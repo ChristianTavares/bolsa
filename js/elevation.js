@@ -61,10 +61,39 @@ App.elev = (function () {
     });
   }
 
+  /* Alças de dimensionamento na vista (só para móveis). */
+  function alcas(area, wall, it, v) {
+    if (!it || it.type !== 'furniture') return [];
+    const r = sRange(area, wall, G.bbox(it));
+    const X = (s) => s * v.scale + v.ox;
+    const Y = (z) => v.oy - z * v.scale;
+    const ym = (Y(it.base) + Y(it.base + it.altura)) / 2;
+    return [
+      { kind: 'esq', sx: X(r.s1), sy: ym },
+      { kind: 'dir', sx: X(r.s2), sy: ym },
+      { kind: 'topo', sx: (X(r.s1) + X(r.s2)) / 2, sy: Y(it.base + it.altura) },
+    ];
+  }
+
+  /* Vão livre até o vizinho (ou até o canto) dos dois lados da peça. */
+  function folgas(area, wall, it) {
+    const r = sRange(area, wall, G.bbox(it));
+    const L = run(area, wall);
+    let esq = 0, dir = L;
+    pecas(area, wall).forEach((p) => {
+      if (p.it.id === it.id || p.luz) return;
+      const cruza = Math.max(p.z1, it.base) < Math.min(p.z2, it.base + it.altura);
+      const mesmaFaixa = Math.abs(p.d - Math.max(0, r.d)) < 0.6;
+      if (!cruza || !mesmaFaixa) return;
+      if (p.s2 <= r.s1 + 1e-6) esq = Math.max(esq, p.s2);
+      if (p.s1 >= r.s2 - 1e-6) dir = Math.min(dir, p.s1);
+    });
+    return { s1: r.s1, s2: r.s2, esq: r.s1 - esq, dir: dir - r.s2, ini: esq, fim: dir };
+  }
+
   function render(ctx, o) {
     const { area, wall, view: v, width: W, height: H } = o;
     const C = App.render.C;
-    const pill = App.render.pill;
     const dimension = App.render.dimension;
     const X = (s) => s * v.scale + v.ox;
     const Y = (z) => v.oy - z * v.scale;
@@ -170,11 +199,33 @@ App.elev = (function () {
         }
       }
       ctx.restore();
-      if (sel) {
-        pill(ctx, 'altura ' + G.num(p.it.altura) + ' m · base ' + G.num(p.it.base) + ' m',
-          x + w / 2, y - 14, C.brand);
-      }
     });
+
+    // cotas e alças da peça selecionada
+    const alvo = area.items.find((i) => i.id === o.selectedId && i.type === 'furniture');
+    if (alvo && !o.exportMode) {
+      const f = folgas(area, wall, alvo);
+      const yTopo = Y(alvo.base + alvo.altura);
+      const yMeio = (Y(alvo.base) + yTopo) / 2;
+      dimension(ctx, X(f.s1), yTopo - 22, X(f.s2), yTopo - 22, G.m(f.s2 - f.s1), C.brand);
+      dimension(ctx, X(f.s1) - 20, Y(alvo.base), X(f.s1) - 20, yTopo, G.m(alvo.altura), C.brand);
+      if (f.esq > 0.005) dimension(ctx, X(f.ini), yMeio, X(f.s1), yMeio, 'sobra ' + G.m(f.esq), C.dimInner);
+      if (f.dir > 0.005) dimension(ctx, X(f.s2), yMeio, X(f.fim), yMeio, 'sobra ' + G.m(f.dir), C.dimInner);
+      if (alvo.base > 0.005) {
+        dimension(ctx, X(f.s2) + 20, Y(0), X(f.s2) + 20, Y(alvo.base), G.m(alvo.base), C.dimInner);
+      }
+      alcas(area, wall, alvo, v).forEach((h) => {
+        ctx.beginPath();
+        ctx.arc(h.sx, h.sy, 9, 0, Math.PI * 2);
+        ctx.fillStyle = '#fff'; ctx.fill();
+        ctx.lineWidth = 2; ctx.strokeStyle = C.brand; ctx.stroke();
+        ctx.strokeStyle = C.brand; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        if (h.kind === 'topo') { ctx.moveTo(h.sx - 4, h.sy + 1.5); ctx.lineTo(h.sx + 4, h.sy + 1.5); ctx.moveTo(h.sx - 4, h.sy - 2.5); ctx.lineTo(h.sx + 4, h.sy - 2.5); }
+        else { ctx.moveTo(h.sx - 1.5, h.sy - 4); ctx.lineTo(h.sx - 1.5, h.sy + 4); ctx.moveTo(h.sx + 2.5, h.sy - 4); ctx.lineTo(h.sx + 2.5, h.sy + 4); }
+        ctx.stroke();
+      });
+    }
 
     // piso, teto e cotas
     ctx.strokeStyle = C.wallEdge;
@@ -198,5 +249,5 @@ App.elev = (function () {
     ctx.fillText('Parede ' + NOMES[wall] + ' · ' + area.name, X(L / 2), Y(PD) - 14);
   }
 
-  return { render, run, sPoint, sRange, moveBy, pecas, vaos, NOMES, ORDEM };
+  return { render, run, sPoint, sRange, moveBy, pecas, vaos, alcas, folgas, NOMES, ORDEM };
 })();

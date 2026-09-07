@@ -15,7 +15,9 @@ e sem servidor.
   (medidas internas) e a espessura da parede. O site mostra a área em m² de cada ambiente
   e o total do apartamento.
 - **Móveis em escala**: catálogo com medidas reais de mercado (cama casal 1,38 × 1,88,
-  guarda-roupa 3 portas 1,50 × 0,60, geladeira, sofá, mesa redonda…).
+  guarda-roupa 3 portas 1,50 × 0,60, geladeira, sofá, mesa redonda…), incluindo a mesa de
+  trabalho, gaveteiros, monitores 24"/27" e ultrawide 34"/49" na altura da bancada, quadros
+  e prateleiras de parede, TV e camas de cachorro do P ao GG.
   Arraste para posicionar, use a alça do canto para redimensionar e a alça de cima para
   girar. O móvel encosta sozinho na parede quando chega perto e a posição fica presa numa
   malha de 5 cm.
@@ -35,6 +37,12 @@ e sem servidor.
   tamanho definido para o cômodo.
 - **Portas e janelas**: entram na parede, com o arco de abertura da porta, e podem ser
   arrastadas ao longo da parede.
+- **Desenhar na vista frontal**: com a vista aberta, o que você adiciona entra **encostado
+  na parede que está sendo olhada**, já virado para o lado certo. A peça selecionada ganha
+  alças — as laterais mudam a medida ao longo da parede, a de cima muda a altura — e o
+  desenho cota sozinho a largura, a altura, a distância do chão e o **vão que sobra de cada
+  lado** até o vizinho ou até o canto. É assim que se responde "que gaveteiro cabe ao lado
+  da mesa" ou "esse ultrawide cabe nessa bancada".
 - **Vista frontal**: o mesmo cômodo visto de dentro, olhando para uma parede de cada vez.
   Cada móvel tem *altura* e *base do chão*, então dá para conferir o que fica na parede
   (armário aéreo, TV, ar-condicionado), a altura do peitoril da janela e o que passa na

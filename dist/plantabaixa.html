@@ -655,6 +655,7 @@ App.presets = (function () {
     'Cozinha': '#f7dcc4',
     'Banheiro': '#cfe6ef',
     'Escritório': '#e3d5f2',
+    'Pet': '#f2d9d9',
     'Geral': '#e2e5ec',
   };
 
@@ -712,12 +713,39 @@ App.presets = (function () {
     ['Banheiro', 'Tanque', 0.55, 0.50, 0.90],
     // Escritório
     ['Escritório', 'Escrivaninha', 1.20, 0.60, 0.75],
+    ['Escritório', 'Mesa 1,40 m', 1.40, 0.70, 0.75],
+    ['Escritório', 'Mesa 1,80 m', 1.80, 0.75, 0.75],
     ['Escritório', 'Mesa em L', 1.50, 1.50, 0.75],
+    ['Escritório', 'Gaveteiro 3 gav.', 0.40, 0.45, 0.55],
+    ['Escritório', 'Gaveteiro 4 gav.', 0.45, 0.50, 0.72],
+    ['Escritório', 'Gaveteiro alto', 0.45, 0.50, 1.00],
     ['Escritório', 'Cadeira de escritório', 0.60, 0.60, 1.10],
+    ['Escritório', 'Cadeira gamer', 0.70, 0.70, 1.28],
+    ['Escritório', 'Monitor 24"', 0.545, 0.20, 0.46, 0.75],
+    ['Escritório', 'Monitor 27"', 0.61, 0.21, 0.51, 0.75],
+    ['Escritório', 'Ultrawide 34"', 0.81, 0.23, 0.52, 0.75],
+    ['Escritório', 'Ultrawide 49"', 1.20, 0.25, 0.56, 0.75],
+    ['Escritório', 'Notebook 15"', 0.36, 0.25, 0.25, 0.75],
+    ['Escritório', 'Teclado', 0.44, 0.14, 0.03, 0.75],
+    ['Escritório', 'CPU torre', 0.22, 0.45, 0.45],
+    ['Escritório', 'Suporte de monitor', 0.50, 0.20, 0.12, 0.75],
     ['Escritório', 'Armário baixo', 0.80, 0.40, 0.80],
+    // Pet
+    ['Pet', 'Cama de cachorro P', 0.55, 0.45, 0.15],
+    ['Pet', 'Cama de cachorro M', 0.75, 0.55, 0.18],
+    ['Pet', 'Cama de cachorro G', 0.95, 0.70, 0.20],
+    ['Pet', 'Cama de cachorro GG', 1.15, 0.85, 0.22],
+    ['Pet', 'Caixa de transporte', 0.70, 0.50, 0.50],
+    ['Pet', 'Comedouro duplo', 0.40, 0.22, 0.12],
+    // Geral
     // Geral
     ['Geral', 'Ar-condicionado', 0.90, 0.25, 0.30, 2.10],
     ['Geral', 'Espelho', 0.60, 0.10, 1.20, 0.90],
+    ['Geral', 'Quadro médio', 0.60, 0.04, 0.90, 1.00],
+    ['Geral', 'Quadro grande', 1.00, 0.04, 0.70, 1.10],
+    ['Geral', 'Prateleira de parede', 0.80, 0.25, 0.04, 1.40],
+    ['Geral', 'TV 43"', 0.97, 0.07, 0.57, 1.10],
+    ['Geral', 'TV 65"', 1.46, 0.08, 0.84, 0.95],
     ['Geral', 'Tapete', 2.00, 1.40, 0.01],
     ['Geral', 'Caixa / volume', 0.50, 0.50, 0.50],
     ['Geral', 'Círculo / volume', 0.60, 0.60, 0.50, 0, 'circle'],
@@ -2302,10 +2330,39 @@ App.elev = (function () {
     });
   }
 
+  /* Alças de dimensionamento na vista (só para móveis). */
+  function alcas(area, wall, it, v) {
+    if (!it || it.type !== 'furniture') return [];
+    const r = sRange(area, wall, G.bbox(it));
+    const X = (s) => s * v.scale + v.ox;
+    const Y = (z) => v.oy - z * v.scale;
+    const ym = (Y(it.base) + Y(it.base + it.altura)) / 2;
+    return [
+      { kind: 'esq', sx: X(r.s1), sy: ym },
+      { kind: 'dir', sx: X(r.s2), sy: ym },
+      { kind: 'topo', sx: (X(r.s1) + X(r.s2)) / 2, sy: Y(it.base + it.altura) },
+    ];
+  }
+
+  /* Vão livre até o vizinho (ou até o canto) dos dois lados da peça. */
+  function folgas(area, wall, it) {
+    const r = sRange(area, wall, G.bbox(it));
+    const L = run(area, wall);
+    let esq = 0, dir = L;
+    pecas(area, wall).forEach((p) => {
+      if (p.it.id === it.id || p.luz) return;
+      const cruza = Math.max(p.z1, it.base) < Math.min(p.z2, it.base + it.altura);
+      const mesmaFaixa = Math.abs(p.d - Math.max(0, r.d)) < 0.6;
+      if (!cruza || !mesmaFaixa) return;
+      if (p.s2 <= r.s1 + 1e-6) esq = Math.max(esq, p.s2);
+      if (p.s1 >= r.s2 - 1e-6) dir = Math.min(dir, p.s1);
+    });
+    return { s1: r.s1, s2: r.s2, esq: r.s1 - esq, dir: dir - r.s2, ini: esq, fim: dir };
+  }
+
   function render(ctx, o) {
     const { area, wall, view: v, width: W, height: H } = o;
     const C = App.render.C;
-    const pill = App.render.pill;
     const dimension = App.render.dimension;
     const X = (s) => s * v.scale + v.ox;
     const Y = (z) => v.oy - z * v.scale;
@@ -2411,11 +2468,33 @@ App.elev = (function () {
         }
       }
       ctx.restore();
-      if (sel) {
-        pill(ctx, 'altura ' + G.num(p.it.altura) + ' m · base ' + G.num(p.it.base) + ' m',
-          x + w / 2, y - 14, C.brand);
-      }
     });
+
+    // cotas e alças da peça selecionada
+    const alvo = area.items.find((i) => i.id === o.selectedId && i.type === 'furniture');
+    if (alvo && !o.exportMode) {
+      const f = folgas(area, wall, alvo);
+      const yTopo = Y(alvo.base + alvo.altura);
+      const yMeio = (Y(alvo.base) + yTopo) / 2;
+      dimension(ctx, X(f.s1), yTopo - 22, X(f.s2), yTopo - 22, G.m(f.s2 - f.s1), C.brand);
+      dimension(ctx, X(f.s1) - 20, Y(alvo.base), X(f.s1) - 20, yTopo, G.m(alvo.altura), C.brand);
+      if (f.esq > 0.005) dimension(ctx, X(f.ini), yMeio, X(f.s1), yMeio, 'sobra ' + G.m(f.esq), C.dimInner);
+      if (f.dir > 0.005) dimension(ctx, X(f.s2), yMeio, X(f.fim), yMeio, 'sobra ' + G.m(f.dir), C.dimInner);
+      if (alvo.base > 0.005) {
+        dimension(ctx, X(f.s2) + 20, Y(0), X(f.s2) + 20, Y(alvo.base), G.m(alvo.base), C.dimInner);
+      }
+      alcas(area, wall, alvo, v).forEach((h) => {
+        ctx.beginPath();
+        ctx.arc(h.sx, h.sy, 9, 0, Math.PI * 2);
+        ctx.fillStyle = '#fff'; ctx.fill();
+        ctx.lineWidth = 2; ctx.strokeStyle = C.brand; ctx.stroke();
+        ctx.strokeStyle = C.brand; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        if (h.kind === 'topo') { ctx.moveTo(h.sx - 4, h.sy + 1.5); ctx.lineTo(h.sx + 4, h.sy + 1.5); ctx.moveTo(h.sx - 4, h.sy - 2.5); ctx.lineTo(h.sx + 4, h.sy - 2.5); }
+        else { ctx.moveTo(h.sx - 1.5, h.sy - 4); ctx.lineTo(h.sx - 1.5, h.sy + 4); ctx.moveTo(h.sx + 2.5, h.sy - 4); ctx.lineTo(h.sx + 2.5, h.sy + 4); }
+        ctx.stroke();
+      });
+    }
 
     // piso, teto e cotas
     ctx.strokeStyle = C.wallEdge;
@@ -2439,7 +2518,7 @@ App.elev = (function () {
     ctx.fillText('Parede ' + NOMES[wall] + ' · ' + area.name, X(L / 2), Y(PD) - 14);
   }
 
-  return { render, run, sPoint, sRange, moveBy, pecas, vaos, NOMES, ORDEM };
+  return { render, run, sPoint, sRange, moveBy, pecas, vaos, alcas, folgas, NOMES, ORDEM };
 })();
 </script>
 <script>
@@ -2615,6 +2694,14 @@ App.Editor = (function () {
     return null;
   }
 
+  function hitAlcaElev(px, py) {
+    const it = getSelected();
+    if (!it || it.type !== 'furniture') return null;
+    const hs = App.elev.alcas(area(), frontWall, it, viewF);
+    for (const h of hs) if (Math.hypot(px - h.sx, py - h.sy) <= 17) return h;
+    return null;
+  }
+
   /* Item sob o ponto na vista frontal (da frente para o fundo). */
   function hitElev(px, py) {
     const a = area();
@@ -2681,8 +2768,23 @@ App.Editor = (function () {
   }
 
   /* ---------- criação de itens ---------- */
+  const ROT_PAREDE = { top: 0, right: 90, bottom: 180, left: 270 };
+
+  /* (posição ao longo da parede, distância até ela) -> ponto do plano. */
+  function planoDeParede(s, dist) {
+    const a = area();
+    if (frontWall === 'top') return { x: s, y: dist };
+    if (frontWall === 'bottom') return { x: a.w - s, y: a.h - dist };
+    if (frontWall === 'left') return { x: dist, y: a.h - s };
+    return { x: a.w - dist, y: s };
+  }
+
   function centerOfView() {
     const a = area();
+    if (mode === 'front') {
+      const s = G.clamp((cssW / 2 - viewF.ox) / viewF.scale, 0, App.elev.run(a, frontWall));
+      return planoDeParede(s, 0.3);
+    }
     const c = toWorld(cssW / 2, cssH / 2);
     return { x: G.clamp(c.x, 0, a.w), y: G.clamp(c.y, 0, a.h) };
   }
@@ -2705,11 +2807,22 @@ App.Editor = (function () {
       it.alt = { w: p.alt.w, h: p.alt.h };
       it.open = false;
     }
+    if (mode === 'front') {
+      // entra encostado na parede que está sendo vista, no meio do que se enxerga
+      it.rot = ROT_PAREDE[frontWall];
+      const s = G.clamp((cssW / 2 - viewF.ox) / viewF.scale, 0, App.elev.run(a, frontWall));
+      const pos = planoDeParede(s, it.h / 2);
+      it.x = pos.x; it.y = pos.y;
+      keepInside(it, a);
+    }
     S.update(() => { a.items.push(it); });
     select(it.id);
-    onHint(p.nome + ' adicionado — ' + (it.alt
-      ? 'toque nele de novo para abrir'
-      : 'arraste na planta ou mude a medida na aba Editar'));
+    onHint(mode === 'front'
+      ? p.nome + ' na parede ' + App.elev.NOMES[frontWall]
+        + ' — arraste para posicionar, alças mudam a medida'
+      : p.nome + ' adicionado — ' + (it.alt
+        ? 'toque nele de novo para abrir'
+        : 'arraste na planta ou mude a medida na aba Editar'));
   }
 
   function addLight(p) {
@@ -2861,6 +2974,15 @@ App.Editor = (function () {
     }
 
     if (mode === 'front') {
+      const alca = hitAlcaElev(p.x, p.y);
+      if (alca) {
+        S.begin();
+        gesture = {
+          type: 'elevh', handle: alca, tx: true, start: p, moved: false,
+          orig: JSON.parse(JSON.stringify(getSelected())),
+        };
+        return;
+      }
       const alvo = hitElev(p.x, p.y);
       if (alvo) {
         const jaEstava = selectedId === alvo.id;
@@ -2921,6 +3043,36 @@ App.Editor = (function () {
     gesture = { type: 'pan', start: p, origin: { ox: view.ox, oy: view.oy }, moved: false, hitEmpty: true };
   }
 
+  /* Alças da vista: laterais mudam a medida ao longo da parede, a de cima muda a altura. */
+  function resizeElev(p) {
+    const a = area(), it = getSelected();
+    if (!it) return;
+    const o = gesture.orig, k = gesture.handle.kind;
+    const cur = toElev(p.x, p.y);
+    S.live(() => {
+      if (k === 'topo') {
+        it.altura = Math.max(0.02, G.snap(cur.z - it.base, SNAP));
+        return;
+      }
+      const r = App.elev.sRange(a, frontWall, G.bbox(o));
+      const horiz = frontWall === 'top' || frontWall === 'bottom';
+      const cos = Math.abs(Math.cos(G.d2r(o.rot || 0)));
+      const sin = Math.abs(Math.sin(G.d2r(o.rot || 0)));
+      const larguraEhW = horiz ? cos > 0.5 : sin > 0.5;
+      const alvo = G.clamp(G.snap(cur.s, SNAP), 0, App.elev.run(a, frontWall));
+      const nova = Math.max(0.05, k === 'dir' ? alvo - r.s1 : r.s2 - alvo);
+      if (larguraEhW) it.w = nova; else it.h = nova;
+      const cs = k === 'dir' ? r.s1 + nova / 2 : r.s2 - nova / 2;
+      const dist = App.elev.sPoint(a, frontWall, o.x, o.y).d;
+      const pos = planoDeParede(cs, dist);
+      it.x = G.snap(pos.x, SNAP); it.y = G.snap(pos.y, SNAP);
+      keepInside(it, a);
+    });
+    const f = App.elev.folgas(a, frontWall, it);
+    onHint(`${it.name}: ${G.m(f.s2 - f.s1)} de largura · altura ${G.m(it.altura)}`
+      + (f.dir > 0.005 ? ' · sobra ' + G.m(f.dir) : ''));
+  }
+
   /* Arraste na vista frontal: horizontal anda pela parede, vertical muda a altura do chão. */
   function moveElev(p) {
     const a = area(), it = getSelected();
@@ -2944,8 +3096,11 @@ App.Editor = (function () {
         it.base = G.clamp(G.snap(o.base + dz, SNAP), 0, Math.max(0, a.pd - it.altura));
       }
     });
+    const fo = it.type === 'furniture' ? App.elev.folgas(a, frontWall, it) : null;
     onHint(it.type === 'furniture'
-      ? it.name + ': altura ' + G.m(it.altura) + ' · base ' + G.m(it.base)
+      ? it.name + ': base ' + G.m(it.base)
+        + (fo.esq > 0.005 ? ' · sobra ' + G.m(fo.esq) + ' à esquerda' : '')
+        + (fo.dir > 0.005 ? ' · ' + G.m(fo.dir) + ' à direita' : '')
       : it.type === 'opening'
         ? (it.kind === 'porta' ? 'Porta' : 'Janela') + ': peitoril ' + G.m(it.base)
         : itemHint(it));
@@ -2987,6 +3142,7 @@ App.Editor = (function () {
       return;
     }
     if (gesture.type === 'elev') { moveElev(p); return; }
+    if (gesture.type === 'elevh') { resizeElev(p); return; }
     if (gesture.type === 'orbit') {
       view3.yaw = gesture.origem.yaw + (p.x - gesture.start.x) * 0.01;
       view3.pitch = G.clamp(gesture.origem.pitch + (p.y - gesture.start.y) * 0.008, -1.2, 1.2);

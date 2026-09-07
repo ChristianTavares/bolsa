@@ -170,6 +170,14 @@ App.Editor = (function () {
     return null;
   }
 
+  function hitAlcaElev(px, py) {
+    const it = getSelected();
+    if (!it || it.type !== 'furniture') return null;
+    const hs = App.elev.alcas(area(), frontWall, it, viewF);
+    for (const h of hs) if (Math.hypot(px - h.sx, py - h.sy) <= 17) return h;
+    return null;
+  }
+
   /* Item sob o ponto na vista frontal (da frente para o fundo). */
   function hitElev(px, py) {
     const a = area();
@@ -236,8 +244,23 @@ App.Editor = (function () {
   }
 
   /* ---------- criação de itens ---------- */
+  const ROT_PAREDE = { top: 0, right: 90, bottom: 180, left: 270 };
+
+  /* (posição ao longo da parede, distância até ela) -> ponto do plano. */
+  function planoDeParede(s, dist) {
+    const a = area();
+    if (frontWall === 'top') return { x: s, y: dist };
+    if (frontWall === 'bottom') return { x: a.w - s, y: a.h - dist };
+    if (frontWall === 'left') return { x: dist, y: a.h - s };
+    return { x: a.w - dist, y: s };
+  }
+
   function centerOfView() {
     const a = area();
+    if (mode === 'front') {
+      const s = G.clamp((cssW / 2 - viewF.ox) / viewF.scale, 0, App.elev.run(a, frontWall));
+      return planoDeParede(s, 0.3);
+    }
     const c = toWorld(cssW / 2, cssH / 2);
     return { x: G.clamp(c.x, 0, a.w), y: G.clamp(c.y, 0, a.h) };
   }
@@ -260,11 +283,22 @@ App.Editor = (function () {
       it.alt = { w: p.alt.w, h: p.alt.h };
       it.open = false;
     }
+    if (mode === 'front') {
+      // entra encostado na parede que está sendo vista, no meio do que se enxerga
+      it.rot = ROT_PAREDE[frontWall];
+      const s = G.clamp((cssW / 2 - viewF.ox) / viewF.scale, 0, App.elev.run(a, frontWall));
+      const pos = planoDeParede(s, it.h / 2);
+      it.x = pos.x; it.y = pos.y;
+      keepInside(it, a);
+    }
     S.update(() => { a.items.push(it); });
     select(it.id);
-    onHint(p.nome + ' adicionado — ' + (it.alt
-      ? 'toque nele de novo para abrir'
-      : 'arraste na planta ou mude a medida na aba Editar'));
+    onHint(mode === 'front'
+      ? p.nome + ' na parede ' + App.elev.NOMES[frontWall]
+        + ' — arraste para posicionar, alças mudam a medida'
+      : p.nome + ' adicionado — ' + (it.alt
+        ? 'toque nele de novo para abrir'
+        : 'arraste na planta ou mude a medida na aba Editar'));
   }
 
   function addLight(p) {
@@ -416,6 +450,15 @@ App.Editor = (function () {
     }
 
     if (mode === 'front') {
+      const alca = hitAlcaElev(p.x, p.y);
+      if (alca) {
+        S.begin();
+        gesture = {
+          type: 'elevh', handle: alca, tx: true, start: p, moved: false,
+          orig: JSON.parse(JSON.stringify(getSelected())),
+        };
+        return;
+      }
       const alvo = hitElev(p.x, p.y);
       if (alvo) {
         const jaEstava = selectedId === alvo.id;
@@ -476,6 +519,36 @@ App.Editor = (function () {
     gesture = { type: 'pan', start: p, origin: { ox: view.ox, oy: view.oy }, moved: false, hitEmpty: true };
   }
 
+  /* Alças da vista: laterais mudam a medida ao longo da parede, a de cima muda a altura. */
+  function resizeElev(p) {
+    const a = area(), it = getSelected();
+    if (!it) return;
+    const o = gesture.orig, k = gesture.handle.kind;
+    const cur = toElev(p.x, p.y);
+    S.live(() => {
+      if (k === 'topo') {
+        it.altura = Math.max(0.02, G.snap(cur.z - it.base, SNAP));
+        return;
+      }
+      const r = App.elev.sRange(a, frontWall, G.bbox(o));
+      const horiz = frontWall === 'top' || frontWall === 'bottom';
+      const cos = Math.abs(Math.cos(G.d2r(o.rot || 0)));
+      const sin = Math.abs(Math.sin(G.d2r(o.rot || 0)));
+      const larguraEhW = horiz ? cos > 0.5 : sin > 0.5;
+      const alvo = G.clamp(G.snap(cur.s, SNAP), 0, App.elev.run(a, frontWall));
+      const nova = Math.max(0.05, k === 'dir' ? alvo - r.s1 : r.s2 - alvo);
+      if (larguraEhW) it.w = nova; else it.h = nova;
+      const cs = k === 'dir' ? r.s1 + nova / 2 : r.s2 - nova / 2;
+      const dist = App.elev.sPoint(a, frontWall, o.x, o.y).d;
+      const pos = planoDeParede(cs, dist);
+      it.x = G.snap(pos.x, SNAP); it.y = G.snap(pos.y, SNAP);
+      keepInside(it, a);
+    });
+    const f = App.elev.folgas(a, frontWall, it);
+    onHint(`${it.name}: ${G.m(f.s2 - f.s1)} de largura · altura ${G.m(it.altura)}`
+      + (f.dir > 0.005 ? ' · sobra ' + G.m(f.dir) : ''));
+  }
+
   /* Arraste na vista frontal: horizontal anda pela parede, vertical muda a altura do chão. */
   function moveElev(p) {
     const a = area(), it = getSelected();
@@ -499,8 +572,11 @@ App.Editor = (function () {
         it.base = G.clamp(G.snap(o.base + dz, SNAP), 0, Math.max(0, a.pd - it.altura));
       }
     });
+    const fo = it.type === 'furniture' ? App.elev.folgas(a, frontWall, it) : null;
     onHint(it.type === 'furniture'
-      ? it.name + ': altura ' + G.m(it.altura) + ' · base ' + G.m(it.base)
+      ? it.name + ': base ' + G.m(it.base)
+        + (fo.esq > 0.005 ? ' · sobra ' + G.m(fo.esq) + ' à esquerda' : '')
+        + (fo.dir > 0.005 ? ' · ' + G.m(fo.dir) + ' à direita' : '')
       : it.type === 'opening'
         ? (it.kind === 'porta' ? 'Porta' : 'Janela') + ': peitoril ' + G.m(it.base)
         : itemHint(it));
@@ -542,6 +618,7 @@ App.Editor = (function () {
       return;
     }
     if (gesture.type === 'elev') { moveElev(p); return; }
+    if (gesture.type === 'elevh') { resizeElev(p); return; }
     if (gesture.type === 'orbit') {
       view3.yaw = gesture.origem.yaw + (p.x - gesture.start.x) * 0.01;
       view3.pitch = G.clamp(gesture.origem.pitch + (p.y - gesture.start.y) * 0.008, -1.2, 1.2);
