@@ -9,7 +9,9 @@
     stage: document.getElementById('stage'),
     onChange: () => {
       UI.render();
-      if (E.getSelected()) UI.setTab('props');
+      // montando o conjunto de luz, não sair da aba a cada luminária adicionada
+      const sel = E.getSelected();
+      if (sel && !(sel.type === 'light' && UI.activeTab() === 'luz')) UI.setTab('props');
     },
     onHint: (msg) => UI.hint(msg),
   });

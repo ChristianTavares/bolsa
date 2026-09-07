@@ -32,6 +32,7 @@ button,input,select{font:inherit;color:inherit}
 .muted{color:var(--ink-2)}
 .small{font-size:12.5px}
 hr{border:0;border-top:1px solid var(--line);margin:6px 0}
+[hidden]{display:none!important}
 
 /* ---------- topbar ---------- */
 .topbar{
@@ -71,7 +72,33 @@ hr{border:0;border-top:1px solid var(--line);margin:6px 0}
 .stage{position:relative;flex:1;min-width:0;background:var(--bg);touch-action:none;overflow:hidden}
 #plan{display:block;width:100%;height:100%;touch-action:none}
 
-.stage-head{position:absolute;top:10px;left:10px;right:10px;display:flex;gap:8px;pointer-events:none}
+.stage-head{
+  position:absolute;top:10px;left:10px;right:10px;display:flex;gap:8px;
+  flex-wrap:wrap;align-items:flex-start;pointer-events:none;
+}
+.viewswitch,.wallnav{
+  display:flex;background:var(--surface);border:1px solid var(--line);border-radius:999px;
+  padding:3px;box-shadow:var(--shadow);pointer-events:auto;
+}
+.viewswitch button,.wallnav button{
+  background:none;border:0;border-radius:999px;padding:6px 12px;cursor:pointer;
+  font-size:13px;color:var(--ink-2);
+}
+.viewswitch button.is-on{background:var(--brand-soft);color:var(--brand);font-weight:600}
+.wallnav{align-items:center;gap:2px}
+.wallnav span{font-size:13px;padding:0 4px;white-space:nowrap}
+.wallnav button{font-size:17px;line-height:1;padding:4px 10px}
+.luz-card{
+  border:1px solid var(--line);border-radius:var(--radius);padding:12px;background:var(--surface-2);
+}
+.luz-linha{display:flex;justify-content:space-between;gap:8px;font-size:13.5px;padding:3px 0}
+.luz-linha b{font-variant-numeric:tabular-nums}
+.luz-bar{height:10px;border-radius:6px;background:#e2e5ec;overflow:hidden;margin:10px 0 6px}
+.luz-bar i{display:block;height:100%;background:linear-gradient(90deg,#f0b429,#e08b1e)}
+.luz-bar.ok i{background:linear-gradient(90deg,#5cb87a,#3f9e63)}
+.luz-msg{font-size:12.5px;margin:6px 0 0}
+.luz-msg.ok{color:#2f7d4f}
+.luz-msg.falta{color:#a4700c}
 .area-chip{
   background:var(--surface);border:1px solid var(--line);border-radius:999px;
   padding:6px 12px;font-size:13px;box-shadow:var(--shadow);max-width:100%;
@@ -271,6 +298,7 @@ hr{border:0;border-top:1px solid var(--line);margin:6px 0}
     <nav class="tabs" role="tablist">
       <button class="tab is-active" data-tab="areas" role="tab">Áreas</button>
       <button class="tab" data-tab="add" role="tab">Adicionar</button>
+      <button class="tab" data-tab="luz" role="tab">Luz</button>
       <button class="tab" data-tab="props" role="tab">Editar</button>
     </nav>
 
@@ -296,6 +324,19 @@ hr{border:0;border-top:1px solid var(--line);margin:6px 0}
       <p class="muted small">Qualquer móvel do catálogo pode ter as medidas trocadas depois, na aba <b>Editar</b>.</p>
     </div>
 
+    <div class="pane" id="pane-luz">
+      <div class="field">
+        <label for="luxSel">Ambiente (lux recomendado)</label>
+        <select id="luxSel"></select>
+      </div>
+      <div id="luzResumo"></div>
+      <p class="muted small" style="margin:14px 0 6px"><b>Luz principal</b> — ilumina o ambiente todo</p>
+      <div class="catalog" id="luzCatPrincipal"></div>
+      <p class="muted small" style="margin:14px 0 6px"><b>Complementar</b> — spots, downlights, fita, arandela</p>
+      <div class="catalog" id="luzCatSpot"></div>
+      <ul class="item-list" id="luzList"></ul>
+    </div>
+
     <div class="pane" id="pane-props">
       <div id="propsEmpty" class="empty">Nenhum item selecionado.<br><span class="muted small">Toque num móvel, linha, porta ou janela da planta.</span></div>
       <div id="propsForm" hidden></div>
@@ -307,6 +348,15 @@ hr{border:0;border-top:1px solid var(--line);margin:6px 0}
 
     <div class="stage-head">
       <div class="area-chip" id="areaChip">—</div>
+      <div class="viewswitch" id="viewSwitch">
+        <button data-mode="plan" class="is-on">Planta</button>
+        <button data-mode="front">Vista frontal</button>
+      </div>
+      <div class="wallnav" id="wallNav" hidden>
+        <button id="wallPrev" aria-label="Parede anterior">‹</button>
+        <span id="wallName">Parede superior</span>
+        <button id="wallNext" aria-label="Próxima parede">›</button>
+      </div>
     </div>
 
     <div class="toolbar" id="toolbar">
@@ -358,9 +408,17 @@ hr{border:0;border-top:1px solid var(--line);margin:6px 0}
         <input id="aT" name="t" inputmode="decimal" value="10">
       </div>
       <div class="field">
+        <label for="aPd">Pé-direito (m)</label>
+        <input id="aPd" name="pd" inputmode="decimal" value="2,60">
+      </div>
+      <div class="field">
         <label for="aColor">Cor</label>
         <input id="aColor" name="color" type="color" value="#7c8cff">
       </div>
+    </div>
+    <div class="field">
+      <label for="aTipo">Ambiente</label>
+      <select id="aTipo"></select>
     </div>
     <p class="err" id="areaErr" hidden></p>
     <div class="dlg-actions">
@@ -395,6 +453,10 @@ hr{border:0;border-top:1px solid var(--line);margin:6px 0}
         <input id="iH" inputmode="decimal" placeholder="0,60">
       </div>
     </div>
+    <div class="field">
+      <label for="iAlt">Altura (m) — usada na vista frontal</label>
+      <input id="iAlt" inputmode="decimal" placeholder="0,75">
+    </div>
     <p class="muted small" id="iHelp">Medidas em metros — pode usar vírgula.</p>
     <div class="dlg-actions">
       <button class="btn" value="cancel" formnovalidate>Cancelar</button>
@@ -423,7 +485,8 @@ window.App = window.App || {};
 
 App.geo = (function () {
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-  const snap = (v, step) => Math.round(v / step) * step;
+  // arredonda o resíduo binário (0,05 × 28 = 1,4000000000000001)
+  const snap = (v, step) => Math.round((Math.round(v / step) * step) * 1000) / 1000;
   const d2r = (d) => (d * Math.PI) / 180;
   const r2d = (r) => (r * 180) / Math.PI;
 
@@ -532,7 +595,9 @@ App.geo = (function () {
 })();
 </script>
 <script>
-/* Catálogo de móveis com medidas reais (metros). w = largura, h = profundidade. */
+/* Catálogos com medidas reais.
+   Móveis: [categoria, nome, largura, profundidade, altura, base do chão, forma, tamanho aberto]
+   Todas as medidas em metros. */
 window.App = window.App || {};
 
 App.presets = (function () {
@@ -547,68 +612,71 @@ App.presets = (function () {
 
   const itens = [
     // Quarto
-    ['Quarto', 'Cama solteiro', 0.88, 1.88],
-    ['Quarto', 'Cama solteirão', 0.96, 2.03],
-    ['Quarto', 'Cama casal', 1.38, 1.88],
-    ['Quarto', 'Cama queen', 1.58, 1.98],
-    ['Quarto', 'Cama king', 1.93, 2.03],
-    ['Quarto', 'Berço', 0.70, 1.30],
-    ['Quarto', 'Criado-mudo', 0.50, 0.40],
-    ['Quarto', 'Guarda-roupa 2p', 1.00, 0.55],
-    ['Quarto', 'Guarda-roupa 3p', 1.50, 0.60],
-    ['Quarto', 'Guarda-roupa 6p', 2.20, 0.60],
-    ['Quarto', 'Cômoda', 0.90, 0.45],
-    ['Quarto', 'Penteadeira', 0.90, 0.40],
+    ['Quarto', 'Cama solteiro', 0.88, 1.88, 0.50],
+    ['Quarto', 'Cama solteirão', 0.96, 2.03, 0.50],
+    ['Quarto', 'Cama casal', 1.38, 1.88, 0.50],
+    ['Quarto', 'Cama queen', 1.58, 1.98, 0.55],
+    ['Quarto', 'Cama king', 1.93, 2.03, 0.55],
+    ['Quarto', 'Berço', 0.70, 1.30, 0.95],
+    ['Quarto', 'Criado-mudo', 0.50, 0.40, 0.55],
+    ['Quarto', 'Guarda-roupa 2p', 1.00, 0.55, 2.20],
+    ['Quarto', 'Guarda-roupa 3p', 1.50, 0.60, 2.20],
+    ['Quarto', 'Guarda-roupa 6p', 2.20, 0.60, 2.20],
+    ['Quarto', 'Cômoda', 0.90, 0.45, 0.85],
+    ['Quarto', 'Penteadeira', 0.90, 0.40, 0.78],
     // Sala
-    ['Sala', 'Sofá 2 lugares', 1.60, 0.85],
-    ['Sala', 'Sofá 3 lugares', 2.00, 0.90],
-    ['Sala', 'Sofá retrátil', 2.20, 1.10, 'rect', [2.20, 1.60]],
-    ['Sala', 'Sofá-cama 150 cm', 1.50, 1.00, 'rect', [1.50, 1.92]],
-    ['Sala', 'Sofá-cama 2 lug.', 1.80, 0.90, 'rect', [1.80, 1.90]],
-    ['Sala', 'Sofá-cama 3 lug.', 2.10, 0.95, 'rect', [2.10, 2.00]],
-    ['Sala', 'Poltrona-cama', 0.90, 0.90, 'rect', [0.90, 1.90]],
-    ['Sala', 'Poltrona', 0.80, 0.80],
-    ['Sala', 'Rack de TV', 1.80, 0.40],
-    ['Sala', 'Mesa de centro', 1.00, 0.60],
-    ['Sala', 'Estante', 0.80, 0.35],
-    ['Sala', 'Mesa jantar 4 lug.', 1.20, 0.80],
-    ['Sala', 'Mesa jantar 6 lug.', 1.60, 0.90],
-    ['Sala', 'Mesa extensível', 1.20, 0.80, 'rect', [1.80, 0.80]],
-    ['Sala', 'Mesa redonda 4 lug.', 1.00, 1.00, 'circle'],
-    ['Sala', 'Mesa redonda 6 lug.', 1.20, 1.20, 'circle'],
-    ['Sala', 'Mesa lateral redonda', 0.45, 0.45, 'circle'],
-    ['Sala', 'Puff', 0.55, 0.55, 'circle'],
-    ['Sala', 'Tapete redondo', 1.50, 1.50, 'circle'],
-    ['Sala', 'Cadeira', 0.45, 0.45],
+    ['Sala', 'Sofá 2 lugares', 1.60, 0.85, 0.85],
+    ['Sala', 'Sofá 3 lugares', 2.00, 0.90, 0.85],
+    ['Sala', 'Sofá retrátil', 2.20, 1.10, 0.90, 0, 'rect', [2.20, 1.60]],
+    ['Sala', 'Sofá-cama 150 cm', 1.50, 1.00, 0.90, 0, 'rect', [1.50, 1.92]],
+    ['Sala', 'Sofá-cama 2 lug.', 1.80, 0.90, 0.90, 0, 'rect', [1.80, 1.90]],
+    ['Sala', 'Sofá-cama 3 lug.', 2.10, 0.95, 0.90, 0, 'rect', [2.10, 2.00]],
+    ['Sala', 'Poltrona-cama', 0.90, 0.90, 0.85, 0, 'rect', [0.90, 1.90]],
+    ['Sala', 'Poltrona', 0.80, 0.80, 0.80],
+    ['Sala', 'Rack de TV', 1.80, 0.40, 0.50],
+    ['Sala', 'TV 55"', 1.24, 0.08, 0.72, 0.95],
+    ['Sala', 'Mesa de centro', 1.00, 0.60, 0.40],
+    ['Sala', 'Estante', 0.80, 0.35, 1.80],
+    ['Sala', 'Mesa jantar 4 lug.', 1.20, 0.80, 0.78],
+    ['Sala', 'Mesa jantar 6 lug.', 1.60, 0.90, 0.78],
+    ['Sala', 'Mesa extensível', 1.20, 0.80, 0.78, 0, 'rect', [1.80, 0.80]],
+    ['Sala', 'Mesa redonda 4 lug.', 1.00, 1.00, 0.78, 0, 'circle'],
+    ['Sala', 'Mesa redonda 6 lug.', 1.20, 1.20, 0.78, 0, 'circle'],
+    ['Sala', 'Mesa lateral redonda', 0.45, 0.45, 0.50, 0, 'circle'],
+    ['Sala', 'Puff', 0.55, 0.55, 0.42, 0, 'circle'],
+    ['Sala', 'Tapete redondo', 1.50, 1.50, 0.01, 0, 'circle'],
+    ['Sala', 'Cadeira', 0.45, 0.45, 0.90],
     // Cozinha
-    ['Cozinha', 'Geladeira', 0.70, 0.70],
-    ['Cozinha', 'Fogão 4 bocas', 0.55, 0.60],
-    ['Cozinha', 'Fogão 5 bocas', 0.76, 0.65],
-    ['Cozinha', 'Bancada / pia', 1.20, 0.60],
-    ['Cozinha', 'Armário aéreo', 1.20, 0.35],
-    ['Cozinha', 'Micro-ondas', 0.50, 0.40],
-    ['Cozinha', 'Máquina de lavar', 0.60, 0.65],
-    ['Cozinha', 'Mesa pequena', 0.80, 0.80],
-    ['Cozinha', 'Mesa redonda', 0.90, 0.90, 'circle'],
+    ['Cozinha', 'Geladeira', 0.70, 0.70, 1.85],
+    ['Cozinha', 'Fogão 4 bocas', 0.55, 0.60, 0.90],
+    ['Cozinha', 'Fogão 5 bocas', 0.76, 0.65, 0.90],
+    ['Cozinha', 'Bancada / pia', 1.20, 0.60, 0.90],
+    ['Cozinha', 'Armário aéreo', 1.20, 0.35, 0.70, 1.50],
+    ['Cozinha', 'Micro-ondas', 0.50, 0.40, 0.30, 0.90],
+    ['Cozinha', 'Máquina de lavar', 0.60, 0.65, 0.95],
+    ['Cozinha', 'Mesa pequena', 0.80, 0.80, 0.78],
+    ['Cozinha', 'Mesa redonda', 0.90, 0.90, 0.78, 0, 'circle'],
     // Banheiro
-    ['Banheiro', 'Vaso sanitário', 0.38, 0.68],
-    ['Banheiro', 'Pia / gabinete', 0.60, 0.45],
-    ['Banheiro', 'Box', 0.90, 0.90],
-    ['Banheiro', 'Banheira', 1.70, 0.75],
-    ['Banheiro', 'Tanque', 0.55, 0.50],
+    ['Banheiro', 'Vaso sanitário', 0.38, 0.68, 0.78],
+    ['Banheiro', 'Pia / gabinete', 0.60, 0.45, 0.85],
+    ['Banheiro', 'Box', 0.90, 0.90, 1.90],
+    ['Banheiro', 'Banheira', 1.70, 0.75, 0.55],
+    ['Banheiro', 'Tanque', 0.55, 0.50, 0.90],
     // Escritório
-    ['Escritório', 'Escrivaninha', 1.20, 0.60],
-    ['Escritório', 'Mesa em L', 1.50, 1.50],
-    ['Escritório', 'Cadeira de escritório', 0.60, 0.60],
-    ['Escritório', 'Armário baixo', 0.80, 0.40],
+    ['Escritório', 'Escrivaninha', 1.20, 0.60, 0.75],
+    ['Escritório', 'Mesa em L', 1.50, 1.50, 0.75],
+    ['Escritório', 'Cadeira de escritório', 0.60, 0.60, 1.10],
+    ['Escritório', 'Armário baixo', 0.80, 0.40, 0.80],
     // Geral
-    ['Geral', 'Ar-condicionado', 0.90, 0.25],
-    ['Geral', 'Espelho', 0.60, 0.10],
-    ['Geral', 'Tapete', 2.00, 1.40],
-    ['Geral', 'Caixa / volume', 0.50, 0.50],
-    ['Geral', 'Círculo / volume', 0.60, 0.60, 'circle'],
-  ].map(([cat, nome, w, h, forma, alt]) => ({
+    ['Geral', 'Ar-condicionado', 0.90, 0.25, 0.30, 2.10],
+    ['Geral', 'Espelho', 0.60, 0.10, 1.20, 0.90],
+    ['Geral', 'Tapete', 2.00, 1.40, 0.01],
+    ['Geral', 'Caixa / volume', 0.50, 0.50, 0.50],
+    ['Geral', 'Círculo / volume', 0.60, 0.60, 0.50, 0, 'circle'],
+  ].map(([cat, nome, w, h, altura, base, forma, alt]) => ({
     cat, nome, w, h,
+    altura: altura || 0.75,
+    base: base || 0,
     forma: forma || 'rect',
     alt: alt ? { w: alt[0], h: alt[1] } : null,
     cor: cores[cat],
@@ -616,7 +684,35 @@ App.presets = (function () {
 
   const categorias = ['Todos'].concat([...new Set(itens.map((i) => i.cat))]);
 
-  return { itens, categorias, cores };
+  /* Luminárias: lúmens típicos de produtos de prateleira. */
+  const luzes = [
+    { kind: 'principal', nome: 'Plafon LED 18 W', lumens: 1600 },
+    { kind: 'principal', nome: 'Plafon LED 24 W', lumens: 2200 },
+    { kind: 'principal', nome: 'Plafon LED 36 W', lumens: 3200 },
+    { kind: 'principal', nome: 'Pendente LED 12 W', lumens: 1100 },
+    { kind: 'principal', nome: 'Lustre 5 × E27', lumens: 3000 },
+    { kind: 'spot', nome: 'Spot LED 7 W', lumens: 600 },
+    { kind: 'spot', nome: 'Downlight 12 W', lumens: 1050 },
+    { kind: 'spot', nome: 'Downlight 18 W', lumens: 1600 },
+    { kind: 'spot', nome: 'Fita LED 5 m', lumens: 1500 },
+    { kind: 'spot', nome: 'Arandela 6 W', lumens: 450 },
+    { kind: 'spot', nome: 'Abajur 8 W', lumens: 700 },
+    { kind: 'spot', nome: 'Luminária de piso 15 W', lumens: 1300 },
+  ];
+
+  /* Lux recomendado por ambiente (referência ABNT NBR ISO/CIE 8995-1). */
+  const ambientes = [
+    { nome: 'Sala de estar', lux: 150 },
+    { nome: 'Sala de jantar', lux: 200 },
+    { nome: 'Quarto', lux: 100 },
+    { nome: 'Cozinha', lux: 300 },
+    { nome: 'Banheiro', lux: 200 },
+    { nome: 'Escritório / estudo', lux: 400 },
+    { nome: 'Área de serviço', lux: 200 },
+    { nome: 'Corredor / hall', lux: 100 },
+  ];
+
+  return { itens, categorias, cores, luzes, ambientes };
 })();
 </script>
 <script>
@@ -649,14 +745,28 @@ App.Store = (function () {
     a.w = +a.w || 3; a.h = +a.h || 3;
     a.wall = a.wall == null ? 0.10 : +a.wall;
     a.color = a.color || '#7c8cff';
+    a.pd = +a.pd > 0 ? +a.pd : 2.60;          // pé-direito
+    a.tipo = a.tipo || 'Sala de estar';
+    a.lux = +a.lux > 0 ? +a.lux : 150;        // lux alvo do ambiente
     a.items = Array.isArray(a.items) ? a.items : [];
     a.items.forEach((i) => {
       i.id = i.id || uid();
       if (i.type === 'opening') {
         i.flip = !!i.flip;
         i.out = !!i.out;
+        const porta = i.kind === 'porta';
+        i.altura = +i.altura > 0 ? +i.altura : (porta ? 2.10 : 1.20);
+        i.base = +i.base >= 0 ? +i.base : (porta ? 0 : 1.10);
+      }
+      if (i.type === 'light') {
+        i.kind = i.kind === 'principal' ? 'principal' : 'spot';
+        i.name = i.name || (i.kind === 'principal' ? 'Luz principal' : 'Spot');
+        i.lumens = +i.lumens > 0 ? +i.lumens : 600;
+        i.x = +i.x || 0; i.y = +i.y || 0;
       }
       if (i.type === 'furniture') {
+        i.altura = +i.altura > 0 ? +i.altura : 0.75;
+        i.base = +i.base >= 0 ? +i.base : 0;
         if (i.shape !== 'circle') i.shape = 'rect';
         if (i.alt && (+i.alt.w > 0) && (+i.alt.h > 0)) {
           i.alt = { w: +i.alt.w, h: +i.alt.h };
@@ -760,11 +870,23 @@ App.Store = (function () {
   const findItem = (id) => { const a = activeArea(); return a && a.items.find((i) => i.id === id); };
   const totalArea = () => project.areas.reduce((s, a) => s + a.w * a.h, 0);
 
+  /* Resumo de iluminação de uma área. */
+  function luz(a) {
+    const lista = a.items.filter((i) => i.type === 'light');
+    const soma = (k) => lista.filter((i) => i.kind === k).reduce((t, i) => t + i.lumens, 0);
+    const principal = soma('principal'), spot = soma('spot');
+    const m2 = a.w * a.h;
+    return {
+      lista, principal, spot, total: principal + spot,
+      m2, alvo: a.lux * m2, lux: m2 ? (principal + spot) / m2 : 0,
+    };
+  }
+
   function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 
   return {
     uid, load, get, update, begin, live, commit, cancelTx, undo, redo, replace,
-    subscribe, activeArea, findItem, totalArea, projetoExemplo,
+    subscribe, activeArea, findItem, totalArea, projetoExemplo, luz,
     canUndo: () => past.length > 0,
     canRedo: () => future.length > 0,
   };
@@ -1032,6 +1154,55 @@ App.render = (function () {
     pill(ctx, G.m(len), (x1 + x2) / 2, (y1 + y2) / 2 - 14, C.line);
   }
 
+  /* Raio, em metros, em que a luminária sozinha entrega o lux alvo do ambiente. */
+  function raioLuz(it, lux) {
+    return G.clamp(Math.sqrt(it.lumens / (Math.max(50, lux) * Math.PI)), 0.35, 6);
+  }
+
+  function drawGlow(ctx, area, it, v, X, Y) {
+    const r = raioLuz(it, area.lux) * v.scale;
+    const g = ctx.createRadialGradient(X(it.x), Y(it.y), 0, X(it.x), Y(it.y), r);
+    g.addColorStop(0, 'rgba(255,190,50,.20)');
+    g.addColorStop(.6, 'rgba(255,190,50,.06)');
+    g.addColorStop(1, 'rgba(255,190,50,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(X(it.x), Y(it.y), r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawLight(ctx, it, v, X, Y, selected) {
+    const sx = X(it.x), sy = Y(it.y);
+    const principal = it.kind === 'principal';
+    const r = principal ? 12 : 7;
+    if (principal) {
+      ctx.strokeStyle = '#d99b16';
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i < 8; i++) {
+        const a = (i * Math.PI) / 4;
+        ctx.beginPath();
+        ctx.moveTo(sx + Math.cos(a) * (r + 3), sy + Math.sin(a) * (r + 3));
+        ctx.lineTo(sx + Math.cos(a) * (r + 8), sy + Math.sin(a) * (r + 8));
+        ctx.stroke();
+      }
+    }
+    ctx.beginPath();
+    ctx.arc(sx, sy, r, 0, Math.PI * 2);
+    ctx.fillStyle = principal ? '#ffd76e' : '#f0b429';
+    ctx.fill();
+    ctx.lineWidth = selected ? 3 : 1.5;
+    ctx.strokeStyle = selected ? C.brand : '#a9761a';
+    ctx.stroke();
+    if (!principal) {
+      ctx.beginPath();
+      ctx.arc(sx, sy, r - 3.5, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255,255,255,.85)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+    if (selected) pill(ctx, it.name + ' · ' + it.lumens + ' lm', sx, sy - r - 14, '#8a5c05');
+  }
+
   function drawHandles(ctx, handles) {
     handles.forEach((h) => {
       ctx.beginPath();
@@ -1065,7 +1236,7 @@ App.render = (function () {
 
   /* Alças de manipulação do item selecionado (em coordenadas de tela). */
   function handlesFor(area, it, v, X, Y) {
-    if (!it) return [];
+    if (!it || it.type === 'light') return [];
     if (it.type === 'line') {
       return [
         { kind: 'p1', sx: X(it.x1), sy: Y(it.y1) },
@@ -1123,6 +1294,17 @@ App.render = (function () {
     ctx.fillStyle = C.floor;
     ctx.fillRect(X(0), Y(0), area.w * v.scale, area.h * v.scale);
 
+    // brilho das luminárias, no piso e por baixo dos móveis
+    const luzes = area.items.filter((i) => i.type === 'light');
+    if (luzes.length) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(X(0), Y(0), area.w * v.scale, area.h * v.scale);
+      ctx.clip();
+      luzes.forEach((i) => drawGlow(ctx, area, i, v, X, Y));
+      ctx.restore();
+    }
+
     drawWalls(ctx, area, v, X, Y);
 
     const sel = o.selectedId;
@@ -1135,6 +1317,9 @@ App.render = (function () {
 
     // nome + área do cômodo, sempre legível por cima dos móveis
     roomLabel(ctx, area, X(area.w / 2), Y(area.h / 2));
+
+    // luminárias por último: são o que se procura no plano de luz
+    luzes.forEach((i) => drawLight(ctx, i, v, X, Y, i.id === sel));
 
     // linha sendo desenhada
     if (o.draft) {
@@ -1157,8 +1342,208 @@ App.render = (function () {
   }
 
   render.openingGeom = openingGeom;
+  render.raioLuz = raioLuz;
+  render.pill = pill;
+  render.roundRect = roundRect;
+  render.dimension = dimension;
+  render.C = C;
   render.handlesFor = handlesFor;
   return render;
+})();
+</script>
+<script>
+/* Vista frontal (elevação): o cômodo visto de dentro, olhando para uma parede.
+   Eixo horizontal = posição ao longo da parede (s); eixo vertical = altura (z). */
+window.App = window.App || {};
+
+App.elev = (function () {
+  const G = App.geo;
+
+  const NOMES = { top: 'superior', right: 'direita', bottom: 'inferior', left: 'esquerda' };
+  const ORDEM = ['top', 'right', 'bottom', 'left'];
+
+  /* Comprimento da parede vista. */
+  const run = (area, wall) => (wall === 'top' || wall === 'bottom') ? area.w : area.h;
+
+  /* Ponto do plano -> (s ao longo da parede, d distância até a parede). */
+  function sPoint(area, wall, x, y) {
+    if (wall === 'top') return { s: x, d: y };
+    if (wall === 'bottom') return { s: area.w - x, d: area.h - y };
+    if (wall === 'left') return { s: area.h - y, d: x };
+    return { s: y, d: area.w - x };
+  }
+
+  /* Caixa do plano -> faixa [s1,s2] na vista e distância até a parede. */
+  function sRange(area, wall, b) {
+    if (wall === 'top') return { s1: b.x1, s2: b.x2, d: b.y1 };
+    if (wall === 'bottom') return { s1: area.w - b.x2, s2: area.w - b.x1, d: area.h - b.y2 };
+    if (wall === 'left') return { s1: area.h - b.y2, s2: area.h - b.y1, d: b.x1 };
+    return { s1: b.y1, s2: b.y2, d: area.w - b.x2 };
+  }
+
+  /* Deslocamento horizontal na vista -> deslocamento no plano. */
+  function moveBy(wall, ds) {
+    if (wall === 'top') return { dx: ds, dy: 0 };
+    if (wall === 'bottom') return { dx: -ds, dy: 0 };
+    if (wall === 'left') return { dx: 0, dy: -ds };
+    return { dx: 0, dy: ds };
+  }
+
+  /* O que aparece na vista, do fundo para a frente. */
+  function pecas(area, wall) {
+    const out = [];
+    area.items.forEach((it) => {
+      if (it.type === 'furniture') {
+        const r = sRange(area, wall, G.bbox(it));
+        out.push({ it, s1: r.s1, s2: r.s2, d: Math.max(0, r.d), z1: it.base, z2: it.base + it.altura });
+      } else if (it.type === 'light') {
+        const p = sPoint(area, wall, it.x, it.y);
+        out.push({ it, s1: p.s - 0.12, s2: p.s + 0.12, d: Math.max(0, p.d), z1: area.pd - 0.1, z2: area.pd, luz: true });
+      }
+    });
+    return out.sort((a, b) => b.d - a.d);
+  }
+
+  /* Portas e janelas da parede que está sendo vista. */
+  function vaos(area, wall) {
+    return area.items.filter((i) => i.type === 'opening' && i.wall === wall).map((it) => {
+      const g = App.render.openingGeom(area, it);
+      const p1 = sPoint(area, wall, g.a.x, g.a.y);
+      const p2 = sPoint(area, wall, g.b.x, g.b.y);
+      return { it, s1: Math.min(p1.s, p2.s), s2: Math.max(p1.s, p2.s), z1: it.base, z2: it.base + it.altura };
+    });
+  }
+
+  function render(ctx, o) {
+    const { area, wall, view: v, width: W, height: H } = o;
+    const C = App.render.C;
+    const pill = App.render.pill;
+    const dimension = App.render.dimension;
+    const X = (s) => s * v.scale + v.ox;
+    const Y = (z) => v.oy - z * v.scale;
+    const L = run(area, wall), PD = area.pd;
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = o.exportMode ? '#ffffff' : C.bg;
+    ctx.fillRect(0, 0, W, H);
+    if (!area) return;
+
+    // parede vista de frente
+    ctx.fillStyle = '#eef0f6';
+    ctx.fillRect(X(0), Y(PD), L * v.scale, PD * v.scale);
+
+    // malha de altura a cada 0,5 m
+    ctx.lineWidth = 1;
+    for (let z = 0.5; z < PD; z += 0.5) {
+      const inteiro = Math.abs(z - Math.round(z)) < 1e-6;
+      ctx.strokeStyle = inteiro ? '#d7dbe6' : '#e6e9f1';
+      ctx.beginPath();
+      ctx.moveTo(X(0), Math.round(Y(z)) + .5);
+      ctx.lineTo(X(L), Math.round(Y(z)) + .5);
+      ctx.stroke();
+      if (inteiro) {
+        // fora da parede, para não brigar com os móveis
+        ctx.fillStyle = '#a7aebe';
+        ctx.font = '10px -apple-system,Segoe UI,Roboto,sans-serif';
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.fillText(G.num(z, 1) + ' m', X(L) + 7, Y(z));
+      }
+    }
+
+    // vãos da parede
+    vaos(area, wall).forEach((p) => {
+      const x = X(p.s1), y = Y(p.z2);
+      const w = (p.s2 - p.s1) * v.scale, h = (p.z2 - p.z1) * v.scale;
+      ctx.fillStyle = p.it.kind === 'janela' ? '#dbe9f7' : '#ffffff';
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = p.it.id === o.selectedId ? C.brand : '#8a91a3';
+      ctx.lineWidth = p.it.id === o.selectedId ? 2.5 : 1.5;
+      ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
+      if (p.it.kind === 'janela') {
+        ctx.beginPath();
+        ctx.moveTo(x + w / 2, y); ctx.lineTo(x + w / 2, y + h);
+        ctx.moveTo(x, y + h / 2); ctx.lineTo(x + w, y + h / 2);
+        ctx.lineWidth = 1; ctx.strokeStyle = '#8aa8c9';
+        ctx.stroke();
+      }
+      if (w > 46 && h > 22) {
+        ctx.fillStyle = 'rgba(28,32,48,.55)';
+        ctx.font = '11px -apple-system,Segoe UI,Roboto,sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText((p.it.kind === 'porta' ? 'Porta ' : 'Janela ') + G.num(p.z2 - p.z1) + ' m',
+          x + w / 2, y + h / 2, w - 8);
+      }
+    });
+
+    // móveis, do fundo para a frente
+    const fundo = Math.max(0.001, (wall === 'top' || wall === 'bottom') ? area.h : area.w);
+    pecas(area, wall).forEach((p) => {
+      const sel = p.it.id === o.selectedId;
+      const x = X(p.s1), y = Y(p.z2);
+      const w = (p.s2 - p.s1) * v.scale, h = Math.max(2, (p.z2 - p.z1) * v.scale);
+      ctx.save();
+      ctx.globalAlpha = G.clamp(1 - (p.d / fundo) * .55, .42, 1);
+      if (p.luz) {
+        ctx.globalAlpha = Math.max(.5, ctx.globalAlpha);
+        ctx.beginPath();
+        ctx.arc(x + w / 2, Y(area.pd) + 7, p.it.kind === 'principal' ? 9 : 6, 0, Math.PI * 2);
+        ctx.fillStyle = p.it.kind === 'principal' ? '#ffd76e' : '#f0b429';
+        ctx.fill();
+        ctx.strokeStyle = sel ? C.brand : '#a9761a';
+        ctx.lineWidth = sel ? 3 : 1.5;
+        ctx.stroke();
+        ctx.restore();
+        return;
+      }
+      App.render.roundRect(ctx, x, y, w, h, Math.min(5, w / 6, h / 6));
+      ctx.fillStyle = p.it.color || '#e2e5ec';
+      ctx.fill();
+      ctx.strokeStyle = sel ? C.brand : 'rgba(40,46,66,.55)';
+      ctx.lineWidth = sel ? 2.5 : 1.2;
+      ctx.stroke();
+      if (w > 52 && h > 24) {
+        ctx.fillStyle = 'rgba(28,32,48,.85)';
+        ctx.font = '600 11px -apple-system,Segoe UI,Roboto,sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(p.it.name || 'Móvel', x + w / 2, y + h / 2 - (h > 40 ? 7 : 0), w - 8);
+        if (h > 40) {
+          ctx.font = '10px -apple-system,Segoe UI,Roboto,sans-serif';
+          ctx.fillStyle = 'rgba(28,32,48,.55)';
+          ctx.fillText('alt. ' + G.num(p.it.altura) + ' m'
+            + (p.it.base > 0 ? ' · a ' + G.num(p.it.base) + ' m do chão' : ''),
+            x + w / 2, y + h / 2 + 8, w - 8);
+        }
+      }
+      ctx.restore();
+      if (sel) {
+        pill(ctx, 'altura ' + G.num(p.it.altura) + ' m · base ' + G.num(p.it.base) + ' m',
+          x + w / 2, y - 14, C.brand);
+      }
+    });
+
+    // piso, teto e cotas
+    ctx.strokeStyle = C.wallEdge;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(X(-0.15), Y(0)); ctx.lineTo(X(L + 0.15), Y(0));
+    ctx.stroke();
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(X(0), Y(PD)); ctx.lineTo(X(L), Y(PD));
+    ctx.stroke();
+    ctx.fillStyle = '#dfe3ec';
+    ctx.fillRect(X(-0.15), Y(0) + 2, (L + 0.3) * v.scale, 10);
+
+    dimension(ctx, X(0), Y(0) + 34, X(L), Y(0) + 34, G.m(L), C.dim);
+    dimension(ctx, X(0) - 30, Y(0), X(0) - 30, Y(PD), G.m(PD), C.dim);
+
+    ctx.fillStyle = 'rgba(28,32,48,.45)';
+    ctx.font = '600 13px -apple-system,Segoe UI,Roboto,sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText('Parede ' + NOMES[wall] + ' · ' + area.name, X(L / 2), Y(PD) - 14);
+  }
+
+  return { render, run, sPoint, sRange, moveBy, pecas, vaos, NOMES, ORDEM };
 })();
 </script>
 <script>
@@ -1173,7 +1558,10 @@ App.Editor = (function () {
   const ANG_SNAP = 15;     // graus
 
   let canvas, ctx, stage;
-  let view = { scale: 100, ox: 0, oy: 0 };
+  let view = { scale: 100, ox: 0, oy: 0 };    // planta: ox/oy = origem do cômodo
+  let viewF = { scale: 100, ox: 0, oy: 0 };   // vista frontal: oy = linha do piso
+  let mode = 'plan';                          // 'plan' | 'front'
+  let frontWall = 'top';
   let tool = 'select';
   let selectedId = null;
   let draft = null;
@@ -1188,7 +1576,10 @@ App.Editor = (function () {
   let pinch = null;
 
   const area = () => S.activeArea();
+  const V = () => (mode === 'plan' ? view : viewF);
   const toWorld = (sx, sy) => ({ x: (sx - view.ox) / view.scale, y: (sy - view.oy) / view.scale });
+  /* Tela -> (s ao longo da parede, z altura) na vista frontal. */
+  const toElev = (sx, sy) => ({ s: (sx - viewF.ox) / viewF.scale, z: (viewF.oy - sy) / viewF.scale });
 
   /* ---------- render loop ---------- */
   function resize() {
@@ -1207,6 +1598,14 @@ App.Editor = (function () {
     if (raf) return;
     raf = requestAnimationFrame(() => {
       raf = 0;
+      if (mode === 'front') {
+        handles = [];
+        App.elev.render(ctx, {
+          area: area(), wall: frontWall, view: viewF,
+          width: cssW, height: cssH, selectedId,
+        });
+        return;
+      }
       handles = App.render(ctx, {
         area: area(), view, width: cssW, height: cssH,
         selectedId, draft,
@@ -1214,24 +1613,33 @@ App.Editor = (function () {
     });
   }
 
-  function fit(animate) {
+  function fit() {
     const a = area();
     if (!a || !cssW) return;
     const pad = 70;
+    if (mode === 'front') {
+      const L = App.elev.run(a, frontWall);
+      const s = Math.min((cssW - pad * 2) / L, (cssH - pad * 2) / a.pd);
+      viewF.scale = G.clamp(s, 4, 600);
+      viewF.ox = cssW / 2 - (L / 2) * viewF.scale;
+      viewF.oy = cssH / 2 + (a.pd / 2) * viewF.scale;
+      draw();
+      return;
+    }
     const w = a.w + 2 * a.wall, h = a.h + 2 * a.wall;
     const s = Math.min((cssW - pad * 2) / w, (cssH - pad * 2) / h);
     view.scale = G.clamp(s, 4, 600);
     view.ox = cssW / 2 - (a.w / 2) * view.scale;
     view.oy = cssH / 2 - (a.h / 2) * view.scale;
-    void animate;
     draw();
   }
 
   function zoomAt(factor, sx, sy) {
-    const before = toWorld(sx, sy);
-    view.scale = G.clamp(view.scale * factor, 6, 800);
-    view.ox = sx - before.x * view.scale;
-    view.oy = sy - before.y * view.scale;
+    const v = V();
+    const k = G.clamp(v.scale * factor, 6, 800) / v.scale;
+    v.scale *= k;
+    v.ox = sx - (sx - v.ox) * k;
+    v.oy = sy - (sy - v.oy) * k;
     draw();
   }
 
@@ -1257,6 +1665,9 @@ App.Editor = (function () {
     const tol = 12 / view.scale;
     const ordered = a.items.slice().reverse();
     for (const it of ordered) {
+      if (it.type === 'light' && Math.hypot(wx - it.x, wy - it.y) <= 0.14 + tol) return it;
+    }
+    for (const it of ordered) {
       if (it.type === 'line' &&
           G.distToSegment(wx, wy, it.x1, it.y1, it.x2, it.y2) <= tol) return it;
     }
@@ -1269,6 +1680,22 @@ App.Editor = (function () {
         if (wx >= g.rect.x1 - tol && wx <= g.rect.x2 + tol &&
             wy >= g.rect.y1 - tol && wy <= g.rect.y2 + tol) return it;
       }
+    }
+    return null;
+  }
+
+  /* Item sob o ponto na vista frontal (da frente para o fundo). */
+  function hitElev(px, py) {
+    const a = area();
+    if (!a) return null;
+    const { s, z } = toElev(px, py);
+    const tol = 8 / viewF.scale;
+    const lista = App.elev.pecas(a, frontWall).slice().reverse();
+    for (const p of lista) {
+      if (s >= p.s1 - tol && s <= p.s2 + tol && z >= p.z1 - tol && z <= p.z2 + tol) return p.it;
+    }
+    for (const p of App.elev.vaos(a, frontWall)) {
+      if (s >= p.s1 - tol && s <= p.s2 + tol && z >= p.z1 - tol && z <= p.z2 + tol) return p.it;
     }
     return null;
   }
@@ -1326,6 +1753,8 @@ App.Editor = (function () {
       x: G.clamp(c.x, p.w / 2, Math.max(p.w / 2, a.w - p.w / 2)),
       y: G.clamp(c.y, p.h / 2, Math.max(p.h / 2, a.h - p.h / 2)),
       rot: 0, color: p.cor || '#e2e5ec',
+      altura: p.altura > 0 ? p.altura : 0.75,
+      base: p.base >= 0 ? p.base : 0,
     };
     if (p.alt && p.alt.w > 0 && p.alt.h > 0) {
       it.alt = { w: p.alt.w, h: p.alt.h };
@@ -1336,6 +1765,22 @@ App.Editor = (function () {
     onHint(p.nome + ' adicionado — ' + (it.alt
       ? 'toque nele de novo para abrir'
       : 'arraste na planta ou mude a medida na aba Editar'));
+  }
+
+  function addLight(p) {
+    const a = area();
+    if (!a) return;
+    const c = centerOfView();
+    const it = {
+      id: S.uid(), type: 'light',
+      kind: p.kind === 'principal' ? 'principal' : 'spot',
+      name: p.nome, lumens: p.lumens,
+      x: G.snap(G.clamp(c.x, 0.15, a.w - 0.15), SNAP),
+      y: G.snap(G.clamp(c.y, 0.15, a.h - 0.15), SNAP),
+    };
+    S.update(() => { a.items.push(it); });
+    select(it.id);
+    onHint(p.nome + ' · ' + p.lumens + ' lm — arraste para posicionar no teto');
   }
 
   function addOpening(kind, wall, posCenter) {
@@ -1443,9 +1888,26 @@ App.Editor = (function () {
     }
     if (pointers.size > 2) return;
 
-    const w = toWorld(p.x, p.y);
     const a = area();
     if (!a) return;
+
+    if (mode === 'front') {
+      const alvo = hitElev(p.x, p.y);
+      if (alvo) {
+        const jaEstava = selectedId === alvo.id;
+        select(alvo.id);
+        S.begin();
+        gesture = {
+          type: 'elev', id: alvo.id, tx: true, start: p, moved: false, wasSelected: jaEstava,
+          grab: toElev(p.x, p.y), orig: JSON.parse(JSON.stringify(alvo)),
+        };
+        return;
+      }
+      gesture = { type: 'pan', start: p, origin: { ox: viewF.ox, oy: viewF.oy }, moved: false, hitEmpty: true };
+      return;
+    }
+
+    const w = toWorld(p.x, p.y);
 
     if (tool === 'line') {
       const sp = snapPoint(w);
@@ -1490,6 +1952,36 @@ App.Editor = (function () {
     gesture = { type: 'pan', start: p, origin: { ox: view.ox, oy: view.oy }, moved: false, hitEmpty: true };
   }
 
+  /* Arraste na vista frontal: horizontal anda pela parede, vertical muda a altura do chão. */
+  function moveElev(p) {
+    const a = area(), it = getSelected();
+    if (!it) return;
+    const o = gesture.orig;
+    const cur = toElev(p.x, p.y);
+    const ds = cur.s - gesture.grab.s, dz = cur.z - gesture.grab.z;
+    S.live(() => {
+      const d = App.elev.moveBy(frontWall, ds);
+      if (it.type === 'furniture') {
+        it.x = G.snap(o.x + d.dx, SNAP); it.y = G.snap(o.y + d.dy, SNAP);
+        keepInside(it, a);
+        it.base = G.clamp(G.snap(o.base + dz, SNAP), 0, Math.max(0, a.pd - 0.05));
+      } else if (it.type === 'light') {
+        it.x = G.clamp(G.snap(o.x + d.dx, SNAP), 0, a.w);
+        it.y = G.clamp(G.snap(o.y + d.dy, SNAP), 0, a.h);
+      } else if (it.type === 'opening') {
+        const sinal = (frontWall === 'top' || frontWall === 'right') ? 1 : -1;
+        const run = (it.wall === 'top' || it.wall === 'bottom') ? a.w : a.h;
+        it.pos = G.clamp(G.snap(o.pos + sinal * ds, SNAP), 0, Math.max(0, run - it.width));
+        it.base = G.clamp(G.snap(o.base + dz, SNAP), 0, Math.max(0, a.pd - it.altura));
+      }
+    });
+    onHint(it.type === 'furniture'
+      ? it.name + ': altura ' + G.m(it.altura) + ' · base ' + G.m(it.base)
+      : it.type === 'opening'
+        ? (it.kind === 'porta' ? 'Porta' : 'Janela') + ': peitoril ' + G.m(it.base)
+        : itemHint(it));
+  }
+
   function onMove(ev) {
     if (!pointers.has(ev.pointerId)) return;
     const p = localPos(ev);
@@ -1519,11 +2011,13 @@ App.Editor = (function () {
     if (dist > 5) gesture.moved = true;
 
     if (gesture.type === 'pan') {
-      view.ox = gesture.origin.ox + (p.x - gesture.start.x);
-      view.oy = gesture.origin.oy + (p.y - gesture.start.y);
+      const v = V();
+      v.ox = gesture.origin.ox + (p.x - gesture.start.x);
+      v.oy = gesture.origin.oy + (p.y - gesture.start.y);
       draw();
       return;
     }
+    if (gesture.type === 'elev') { moveElev(p); return; }
     if (gesture.type === 'line') {
       let sp = snapPoint(w);
       const dx = sp.x - draft.x1, dy = sp.y - draft.y1;
@@ -1559,6 +2053,9 @@ App.Editor = (function () {
         const horiz = (it.wall === 'top' || it.wall === 'bottom');
         const run = horiz ? a.w : a.h;
         it.pos = G.clamp(G.snap(o.pos + (horiz ? dx : dy), SNAP), 0, Math.max(0, run - it.width));
+      } else if (it.type === 'light') {
+        it.x = G.clamp(G.snap(o.x + dx, SNAP), 0, a.w);
+        it.y = G.clamp(G.snap(o.y + dy, SNAP), 0, a.h);
       }
     });
     onHint(itemHint(it));
@@ -1617,6 +2114,7 @@ App.Editor = (function () {
     if (it.type === 'furniture') return it.name + ': ' + G.num(it.w) + ' × ' + G.num(it.h) + ' m · ' + Math.round(it.rot || 0) + '°';
     if (it.type === 'line') return 'Linha: ' + G.m(Math.hypot(it.x2 - it.x1, it.y2 - it.y1));
     if (it.type === 'opening') return (it.kind === 'porta' ? 'Porta' : 'Janela') + ': ' + G.m(it.width);
+    if (it.type === 'light') return it.name + ': ' + it.lumens + ' lm';
     return '';
   }
 
@@ -1642,11 +2140,13 @@ App.Editor = (function () {
         setTool('select');
       } else if (gesture.tx) {
         // toque curto num item já selecionado = abrir/fechar (tolera o tremido do dedo)
-        const toque = gesture.type === 'item' && gesture.wasSelected && (gesture.maxMove || 0) <= 8;
+        const toque = (gesture.type === 'item' || gesture.type === 'elev')
+          && gesture.wasSelected && (gesture.maxMove || 0) <= 8;
         if (toque) {
           const it = getSelected(), o = gesture.orig;
-          if (it && it.type === 'furniture') S.live(() => { it.x = o.x; it.y = o.y; });
-          if (it && it.type === 'opening') S.live(() => { it.pos = o.pos; });
+          if (it && it.type === 'furniture') S.live(() => { it.x = o.x; it.y = o.y; it.base = o.base; });
+          if (it && it.type === 'opening') S.live(() => { it.pos = o.pos; it.base = o.base; });
+          if (it && it.type === 'light') S.live(() => { it.x = o.x; it.y = o.y; });
         }
         S.commit();
         if (toque) { toggleOpen(gesture.id) || cycleDoor(gesture.id); }
@@ -1702,22 +2202,34 @@ App.Editor = (function () {
     if (!a) return;
     const pad = 90;
     const scale = 140;
-    const W = Math.round((a.w + 2 * a.wall) * scale + pad * 2);
-    const H = Math.round((a.h + 2 * a.wall) * scale + pad * 2);
+    const frente = mode === 'front';
+    const L = frente ? App.elev.run(a, frontWall) : a.w + 2 * a.wall;
+    const A = frente ? a.pd : a.h + 2 * a.wall;
+    const W = Math.round(L * scale + pad * 2);
+    const H = Math.round(A * scale + pad * 2);
     const c = document.createElement('canvas');
     const dpr = 2;
     c.width = W * dpr; c.height = H * dpr;
     const cx = c.getContext('2d');
     cx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    App.render(cx, {
-      area: a, width: W, height: H, selectedId: null, exportMode: true,
-      view: { scale, ox: pad + a.wall * scale, oy: pad + a.wall * scale },
-    });
+    if (frente) {
+      App.elev.render(cx, {
+        area: a, wall: frontWall, width: W, height: H, selectedId: null, exportMode: true,
+        view: { scale, ox: pad, oy: pad + a.pd * scale },
+      });
+    } else {
+      App.render(cx, {
+        area: a, width: W, height: H, selectedId: null, exportMode: true,
+        view: { scale, ox: pad + a.wall * scale, oy: pad + a.wall * scale },
+      });
+    }
     c.toBlob((blob) => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = (filename || a.name.replace(/\s+/g, '-').toLowerCase()) + '.png';
+      const base = filename || a.name.replace(/\s+/g, '-').toLowerCase()
+        + (frente ? '-parede-' + App.elev.NOMES[frontWall] : '');
+      link.download = base + '.png';
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -1726,7 +2238,28 @@ App.Editor = (function () {
   }
 
   /* ---------- API ---------- */
+  function setMode(m) {
+    if (m === mode) return;
+    mode = m;
+    if (mode === 'front') setTool('select');
+    draft = null;
+    fit();
+    onChange();
+  }
+
+  function setFrontWall(w) {
+    frontWall = w;
+    fit();
+    onChange();
+  }
+
+  function girarParede(passo) {
+    const i = App.elev.ORDEM.indexOf(frontWall);
+    setFrontWall(App.elev.ORDEM[(i + passo + 4) % 4]);
+  }
+
   function setTool(t) {
+    if (mode === 'front') t = 'select';
     tool = t;
     document.querySelectorAll('.tool').forEach((b) => b.classList.toggle('is-active', b.dataset.tool === t));
     if (t === 'line') onHint('Arraste dentro do cômodo para desenhar a linha');
@@ -1756,12 +2289,15 @@ App.Editor = (function () {
   }
 
   return {
-    init, draw, fit, resize, setTool, select, getSelected, addFurniture, addOpening, keepInside, toggleOpen, cycleDoor,
+    init, draw, fit, resize, setTool, select, getSelected, addFurniture, addOpening, addLight,
+    keepInside, toggleOpen, cycleDoor, setMode, setFrontWall, girarParede,
     removeSelected, duplicateSelected, exportPNG, zoomAt,
     zoomIn: () => zoomAt(1.25, cssW / 2, cssH / 2),
     zoomOut: () => zoomAt(0.8, cssW / 2, cssH / 2),
     get selectedId() { return selectedId; },
     get tool() { return tool; },
+    get mode() { return mode; },
+    get frontWall() { return frontWall; },
   };
 })();
 </script>
@@ -1784,6 +2320,8 @@ App.UI = (function () {
       { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
     ));
   }
+
+  const lm = (v) => Math.round(v).toLocaleString('pt-BR') + ' lm';
 
   function toast(msg) {
     const el = $('#toast');
@@ -1862,16 +2400,18 @@ App.UI = (function () {
       $('#pane-areas').appendChild(ul);
     }
     if (!a) { ul.innerHTML = ''; return; }
-    const label = (i) => i.type === 'furniture' ? i.name
+    const label = (i) => (i.type === 'furniture' || i.type === 'light') ? i.name
       : i.type === 'line' ? 'Linha'
       : (i.kind === 'porta' ? 'Porta' : 'Janela');
     const size = (i) => i.type === 'furniture'
       ? (i.shape === 'circle' && Math.abs(i.w - i.h) < 1e-6
           ? `Ø ${G.num(i.w)} m` : `${G.num(i.w)}×${G.num(i.h)} m`) + (i.open ? ' · aberto' : '')
       : i.type === 'line' ? G.m(Math.hypot(i.x2 - i.x1, i.y2 - i.y1))
+      : i.type === 'light' ? lm(i.lumens)
       : G.m(i.width);
     const color = (i) => i.type === 'furniture' ? (i.color || '#e2e5ec')
-      : i.type === 'line' ? '#3b49c4' : '#8a91a3';
+      : i.type === 'line' ? '#3b49c4'
+      : i.type === 'light' ? '#f0b429' : '#8a91a3';
     ul.innerHTML = `<li class="muted small" style="padding:4px 2px">Itens de ${esc(a.name)} (${a.items.length}) — ✎ muda a medida, 🗑 exclui</li>`
       + a.items.map((i) => `
       <li class="item-row ${i.id === E.selectedId ? 'is-active' : ''}" data-id="${i.id}">
@@ -1892,6 +2432,13 @@ App.UI = (function () {
     $('#aW').value = area ? G.num(area.w) : '';
     $('#aH').value = area ? G.num(area.h) : '';
     $('#aT').value = area ? G.num(area.wall * 100, 0) : '10';
+    $('#aPd').value = G.num(area ? area.pd : 2.6);
+    const tipoSel = $('#aTipo');
+    if (!tipoSel.options.length) {
+      tipoSel.innerHTML = App.presets.ambientes
+        .map((x) => `<option value="${x.nome}">${x.nome} — ${x.lux} lux</option>`).join('');
+    }
+    tipoSel.value = area ? area.tipo : 'Sala de estar';
     $('#aColor').value = area ? area.color : randomColor();
     $('#areaErr').hidden = true;
     dlg.returnValue = '';
@@ -1905,15 +2452,21 @@ App.UI = (function () {
       const name = $('#aName').value.trim() || 'Área';
       if (!(w > 0) || !(h > 0)) { toast('Informe largura e profundidade em metros'); return; }
       const wall = Number.isFinite(t) && t >= 0 ? t : 0.1;
+      const pdv = G.parseNum($('#aPd').value);
+      const pd = pdv > 0 ? pdv : 2.6;
+      const tipo = $('#aTipo').value;
+      const amb = App.presets.ambientes.find((x) => x.nome === tipo);
+      const lux = amb ? amb.lux : 150;
       if (area) {
         S.update(() => {
           area.name = name; area.w = w; area.h = h; area.wall = wall; area.color = $('#aColor').value;
+          area.pd = pd; area.tipo = tipo; area.lux = lux;
           clampItems(area);
         });
         toast('Área atualizada');
       } else {
         const na = {
-          id: S.uid(), name, w, h, wall, color: $('#aColor').value, items: [],
+          id: S.uid(), name, w, h, wall, pd, tipo, lux, color: $('#aColor').value, items: [],
         };
         S.update((p) => { p.areas.push(na); p.activeId = na.id; });
         E.select(null);
@@ -1957,6 +2510,67 @@ App.UI = (function () {
       </button>`).join('') || '<p class="muted small">Nada nesta categoria.</p>';
   }
 
+  /* ---------- iluminação ---------- */
+  function renderLuz() {
+    const a = S.activeArea();
+    if (!a) return;
+    const sel = $('#luxSel');
+    if (!sel.options.length) {
+      sel.innerHTML = App.presets.ambientes
+        .map((x) => `<option value="${x.nome}">${x.nome} — ${x.lux} lux</option>`).join('');
+    }
+    if (document.activeElement !== sel) sel.value = a.tipo;
+
+    const L = S.luz(a);
+    const pct = L.alvo ? Math.min(100, Math.round((L.total / L.alvo) * 100)) : 0;
+    const falta = Math.max(0, L.alvo - L.total);
+    const spots = Math.ceil(falta / 600);
+    const nP = L.lista.filter((i) => i.kind === 'principal').length;
+    const nS = L.lista.filter((i) => i.kind === 'spot').length;
+    const ok = falta <= 0;
+
+    $('#luzResumo').innerHTML = `
+      <div class="luz-card">
+        <div class="luz-linha"><span>Área</span><b>${G.m2(L.m2)}</b></div>
+        <div class="luz-linha"><span>Alvo (${a.lux} lux)</span><b>${lm(L.alvo)}</b></div>
+        <div class="luz-linha"><span>Instalado</span><b>${lm(L.total)}</b></div>
+        <div class="luz-bar ${ok ? 'ok' : ''}"><i style="width:${pct}%"></i></div>
+        <p class="luz-msg ${ok ? 'ok' : 'falta'}">${ok
+          ? `Dá ${Math.round(L.lux)} lux — o ambiente está resolvido.`
+          : `Está em ${Math.round(L.lux)} lux. Faltam ${lm(falta)} ≈ ${spots} spot${spots > 1 ? 's' : ''} de 600 lm.`}</p>
+        <hr>
+        <div class="luz-linha"><span>Principal (${nP})</span><b>${lm(L.principal)}</b></div>
+        <div class="luz-linha"><span>Complementar (${nS})</span><b>${lm(L.spot)}</b></div>
+        ${L.principal < L.alvo * 0.6 && L.total > 0
+          ? '<p class="luz-msg falta">A luz principal sozinha está abaixo de 60% do alvo — com os spots desligados o ambiente fica escuro.</p>'
+          : ''}
+      </div>`;
+
+    const card = (l, i) => `
+      <button class="cat-item" data-luz="${i}">
+        <i class="round" style="background:${l.kind === 'principal' ? '#ffd76e' : '#f0b429'}"></i>
+        <b>${esc(l.nome)}</b>
+        <span>${lm(l.lumens)}</span>
+      </button>`;
+    const luzes = App.presets.luzes;
+    $('#luzCatPrincipal').innerHTML = luzes.map((l, i) => l.kind === 'principal' ? card(l, i) : '').join('');
+    $('#luzCatSpot').innerHTML = luzes.map((l, i) => l.kind === 'spot' ? card(l, i) : '').join('');
+
+    $('#luzList').innerHTML = L.lista.length
+      ? `<li class="muted small" style="padding:4px 2px">Luminárias nesta área (${L.lista.length})</li>`
+        + L.lista.map((i) => `
+        <li class="item-row ${i.id === E.selectedId ? 'is-active' : ''}" data-id="${i.id}">
+          <span class="dot" style="background:${i.kind === 'principal' ? '#ffd76e' : '#f0b429'}"></span>
+          <span class="nm">${esc(i.name)}</span>
+          <span class="sz">${lm(i.lumens)}</span>
+          <span class="row-acts">
+            <button class="mini" data-act="edit" title="Editar">✎</button>
+            <button class="mini danger" data-act="del" title="Excluir">🗑</button>
+          </span>
+        </li>`).join('')
+      : '<li class="muted small" style="padding:10px 2px">Nenhuma luminária ainda. Escolha uma acima — ela entra no teto, no centro da tela.</li>';
+  }
+
   /* ---------- propriedades ---------- */
   function fieldNum(id, label, value, step) {
     return `<div class="field">
@@ -1994,10 +2608,32 @@ App.UI = (function () {
           <option value="rect" ${redondo ? '' : 'selected'}>Retângulo</option>
           <option value="circle" ${redondo ? 'selected' : ''}>Círculo / oval</option>
         </select></div>
+      <div class="row">${fieldNum('pAlt', 'Altura (m)', G.num(it.altura))}${fieldNum('pBase', 'Base do chão (m)', G.num(it.base))}</div>
+      <p class="muted small">Altura e base aparecem na <b>vista frontal</b> — base &gt; 0 para o que fica na parede (armário aéreo, TV, ar-condicionado).</p>
       <div class="row">${fieldNum('pX', 'X do centro (m)', G.num(it.x))}${fieldNum('pY', 'Y do centro (m)', G.num(it.y))}</div>
       <div class="row">${fieldNum('pR', 'Rotação (°)', G.num(it.rot || 0, 0))}
         <div class="field"><label for="pColor">Cor</label><input id="pColor" type="color" value="${toHex(it.color)}"></div></div>
       <button class="btn btn-danger block" data-act="del">Excluir móvel</button>`;
+    }
+    if (it.type === 'light') {
+      const principal = it.kind === 'principal';
+      return `
+      <div class="prop-head"><span class="badge">${principal ? 'Luz principal' : 'Complementar'}</span>
+        <span class="grow"></span>
+        <button class="mini" data-act="dup" title="Duplicar">⧉</button>
+        <button class="mini danger" data-act="del" title="Excluir luminária">🗑</button>
+      </div>
+      <div class="field"><label for="pName">Nome</label><input id="pName" value="${esc(it.name || '')}"></div>
+      <div class="field"><label>Tipo</label>
+        <div class="seg">
+          <button type="button" data-act="luzkind" data-val="principal" class="${principal ? 'is-on' : ''}">Principal</button>
+          <button type="button" data-act="luzkind" data-val="spot" class="${principal ? '' : 'is-on'}">Complementar</button>
+        </div>
+      </div>
+      <div class="row">${fieldNum('pLm', 'Lúmens (lm)', Math.round(it.lumens))}${fieldNum('pX', 'X (m)', G.num(it.x))}</div>
+      <div class="row">${fieldNum('pY', 'Y (m)', G.num(it.y))}<div class="field"></div></div>
+      <p class="muted small">O halo na planta mostra o alcance em que essa luminária sozinha entrega ${S.activeArea().lux} lux.</p>
+      <button class="btn btn-danger block" data-act="del">Excluir luminária</button>`;
     }
     if (it.type === 'line') {
       const len = Math.hypot(it.x2 - it.x1, it.y2 - it.y1);
@@ -2040,6 +2676,7 @@ App.UI = (function () {
         <button class="mini danger" data-act="del" title="Excluir ${nomeAbertura}">🗑</button>
       </div>
       <div class="row">${fieldNum('pOw', 'Largura (m)', G.num(it.width))}${fieldNum('pOp', 'Distância do canto (m)', G.num(it.pos))}</div>
+      <div class="row">${fieldNum('pOh', 'Altura do vão (m)', G.num(it.altura))}${fieldNum('pOb', it.kind === 'porta' ? 'Base do chão (m)' : 'Peitoril (m)', G.num(it.base))}</div>
       <div class="field"><label for="pWall">Parede</label>
         <select id="pWall">${Object.entries(paredes).map(([k, v]) =>
           `<option value="${k}" ${it.wall === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
@@ -2065,7 +2702,8 @@ App.UI = (function () {
     empty.hidden = true; box.hidden = false;
     const key = it.id + ':' + it.type + ':' + (it.kind || '') + ':' + (it.shape || '')
       + ':' + (it.alt ? 'alt' : '') + ':' + (it.open ? 'aberto' : '')
-      + ':' + (it.wall || '') + (it.flip ? 'f' : '') + (it.out ? 'o' : '');
+      + ':' + (it.wall || '') + (it.flip ? 'f' : '') + (it.out ? 'o' : '')
+      + ':' + (it.type === 'light' ? it.kind : '');
     if (key !== lastPropsKey) {
       lastPropsKey = key;
       box.innerHTML = propsHTML(it);
@@ -2086,13 +2724,20 @@ App.UI = (function () {
       setVal('pW', G.num(it.w)); setVal('pH', G.num(it.h));
       setVal('pX', G.num(it.x)); setVal('pY', G.num(it.y));
       setVal('pR', G.num(it.rot || 0, 0));
+      setVal('pAlt', G.num(it.altura)); setVal('pBase', G.num(it.base));
       if (it.alt) { setVal('pAW', G.num(it.alt.w)); setVal('pAH', G.num(it.alt.h)); }
+    } else if (it.type === 'light') {
+      setVal('pName', it.name || '');
+      setVal('pLm', Math.round(it.lumens));
+      setVal('pX', G.num(it.x)); setVal('pY', G.num(it.y));
     } else if (it.type === 'line') {
       setVal('pLen', G.num(Math.hypot(it.x2 - it.x1, it.y2 - it.y1)));
       setVal('pAng', G.num(G.r2d(Math.atan2(it.y2 - it.y1, it.x2 - it.x1)), 0));
     } else {
       setVal('pOw', G.num(it.width));
       setVal('pOp', G.num(it.pos));
+      setVal('pOh', G.num(it.altura));
+      setVal('pOb', G.num(it.base));
       const w = document.getElementById('pWall');
       if (w && document.activeElement !== w) w.value = it.wall;
     }
@@ -2129,10 +2774,18 @@ App.UI = (function () {
       onNum('pX', (v) => { it.x = v; fix(); });
       onNum('pY', (v) => { it.y = v; fix(); });
       onNum('pR', (v) => { it.rot = ((v % 360) + 360) % 360; fix(); });
+      onNum('pAlt', (v) => { it.altura = G.clamp(v, 0.01, 6); });
+      onNum('pBase', (v) => { it.base = G.clamp(v, 0, 6); });
       if (it.alt) {
         onNum('pAW', (v) => { it.alt.w = G.clamp(v, 0.05, 50); });
         onNum('pAH', (v) => { it.alt.h = G.clamp(v, 0.05, 50); });
       }
+    } else if (it.type === 'light') {
+      const nm = document.getElementById('pName');
+      nm.addEventListener('change', () => S.update(() => { it.name = nm.value.trim() || 'Luminária'; }));
+      onNum('pLm', (v) => { it.lumens = G.clamp(Math.round(v), 10, 20000); });
+      onNum('pX', (v) => { it.x = G.clamp(v, 0, a.w); });
+      onNum('pY', (v) => { it.y = G.clamp(v, 0, a.h); });
     } else if (it.type === 'line') {
       onNum('pLen', (v) => {
         const ang = Math.atan2(it.y2 - it.y1, it.x2 - it.x1);
@@ -2161,6 +2814,8 @@ App.UI = (function () {
         const run = (it.wall === 'top' || it.wall === 'bottom') ? a.w : a.h;
         it.pos = G.clamp(v, 0, Math.max(0, run - it.width));
       });
+      onNum('pOh', (v) => { it.altura = G.clamp(v, 0.2, a.pd); });
+      onNum('pOb', (v) => { it.base = G.clamp(v, 0, Math.max(0, a.pd - it.altura)); });
     }
 
   }
@@ -2181,6 +2836,7 @@ App.UI = (function () {
       });
       if (act === 'hinge') S.update(() => { it.flip = b.dataset.val === 'b'; });
       if (act === 'swing') S.update(() => { it.out = b.dataset.val === 'out'; });
+      if (act === 'luzkind') S.update(() => { it.kind = b.dataset.val === 'principal' ? 'principal' : 'spot'; });
       if (act === 'equal') S.update(() => { it.h = it.w; it.rot = 0; E.keepInside(it, S.activeArea()); });
       if (act === 'toggle') E.toggleOpen(it.id);
       if (act === 'addalt') {
@@ -2218,7 +2874,7 @@ App.UI = (function () {
   function shapeDialog(shape) {
     const dlg = $('#itemDlg');
     $('#iShape').value = shape || 'rect';
-    $('#iName').value = ''; $('#iW').value = ''; $('#iH').value = '';
+    $('#iName').value = ''; $('#iW').value = ''; $('#iH').value = ''; $('#iAlt').value = '';
     applyShapeFields();
     dlg.returnValue = '';
     dlg.showModal();
@@ -2229,9 +2885,11 @@ App.UI = (function () {
       const h = v === 'rect' ? G.parseNum($('#iH').value) : w;
       if (!(w > 0) || !(h > 0)) { toast('Informe a medida em metros'); return; }
       const padrao = v === 'circle' ? 'Círculo' : v === 'square' ? 'Quadrado' : 'Móvel';
+      const alt = G.parseNum($('#iAlt').value);
       E.addFurniture({
         nome: $('#iName').value.trim() || padrao,
         w, h,
+        altura: alt > 0 ? alt : 0.75,
         forma: v === 'circle' ? 'circle' : 'rect',
         cor: '#e2e5ec',
       });
@@ -2249,10 +2907,20 @@ App.UI = (function () {
       scheduled = false;
       renderAreas();
       renderItems();
+      renderLuz();
       renderProps();
+      renderView();
       $('#btnUndo').disabled = !S.canUndo();
       $('#btnRedo').disabled = !S.canRedo();
     });
+  }
+
+  function renderView() {
+    const m = E.mode;
+    $$('#viewSwitch button').forEach((b) => b.classList.toggle('is-on', b.dataset.mode === m));
+    $('#wallNav').hidden = m !== 'front';
+    $('#toolbar').hidden = m === 'front';
+    if (m === 'front') $('#wallName').textContent = 'Parede ' + App.elev.NOMES[E.frontWall];
   }
 
   /* ---------- import / export ---------- */
@@ -2330,6 +2998,47 @@ App.UI = (function () {
     });
 
     $('#btnNewArea').addEventListener('click', () => areaDialog(null));
+
+    const addLuz = (ev) => {
+      const b = ev.target.closest('[data-luz]');
+      if (!b) return;
+      E.addLight(App.presets.luzes[+b.dataset.luz]);
+      if (isMobile()) openPanel(false);
+    };
+    $('#luzCatPrincipal').addEventListener('click', addLuz);
+    $('#luzCatSpot').addEventListener('click', addLuz);
+
+    $('#luzList').addEventListener('click', (ev) => {
+      const row = ev.target.closest('.item-row');
+      if (!row) return;
+      E.select(row.dataset.id);
+      const act = ev.target.closest('[data-act]');
+      if (act && act.dataset.act === 'del') {
+        E.removeSelected();
+        toast('Luminária excluída — desfaça no ↶ lá em cima');
+        return;
+      }
+      setTab('props');
+    });
+
+    $('#luxSel').addEventListener('change', () => {
+      const amb = App.presets.ambientes.find((x) => x.nome === $('#luxSel').value);
+      if (!amb) return;
+      S.update(() => {
+        const a = S.activeArea();
+        a.tipo = amb.nome; a.lux = amb.lux;
+      });
+      E.draw();
+    });
+
+    $('#viewSwitch').addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-mode]');
+      if (!b) return;
+      E.setMode(b.dataset.mode);
+      if (b.dataset.mode === 'front') hint('Arraste um móvel: para os lados anda na parede, para cima muda a altura do chão');
+    });
+    $('#wallPrev').addEventListener('click', () => E.girarParede(-1));
+    $('#wallNext').addEventListener('click', () => E.girarParede(1));
 
     $('#catFilter').addEventListener('change', renderCatalog);
     $('#catalog').addEventListener('click', (ev) => {
@@ -2418,7 +3127,12 @@ App.UI = (function () {
     S.subscribe(render);
   }
 
-  return { init, render, toast, hint, setTab, isMobile, openPanel };
+  const activeTab = () => {
+    const t = document.querySelector('.tab.is-active');
+    return t ? t.dataset.tab : 'areas';
+  };
+
+  return { init, render, toast, hint, setTab, isMobile, openPanel, activeTab };
 })();
 </script>
 <script>
@@ -2433,7 +3147,9 @@ App.UI = (function () {
     stage: document.getElementById('stage'),
     onChange: () => {
       UI.render();
-      if (E.getSelected()) UI.setTab('props');
+      // montando o conjunto de luz, não sair da aba a cada luminária adicionada
+      const sel = E.getSelected();
+      if (sel && !(sel.type === 'light' && UI.activeTab() === 'luz')) UI.setTab('props');
     },
     onHint: (msg) => UI.hint(msg),
   });

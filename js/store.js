@@ -27,14 +27,28 @@ App.Store = (function () {
     a.w = +a.w || 3; a.h = +a.h || 3;
     a.wall = a.wall == null ? 0.10 : +a.wall;
     a.color = a.color || '#7c8cff';
+    a.pd = +a.pd > 0 ? +a.pd : 2.60;          // pé-direito
+    a.tipo = a.tipo || 'Sala de estar';
+    a.lux = +a.lux > 0 ? +a.lux : 150;        // lux alvo do ambiente
     a.items = Array.isArray(a.items) ? a.items : [];
     a.items.forEach((i) => {
       i.id = i.id || uid();
       if (i.type === 'opening') {
         i.flip = !!i.flip;
         i.out = !!i.out;
+        const porta = i.kind === 'porta';
+        i.altura = +i.altura > 0 ? +i.altura : (porta ? 2.10 : 1.20);
+        i.base = +i.base >= 0 ? +i.base : (porta ? 0 : 1.10);
+      }
+      if (i.type === 'light') {
+        i.kind = i.kind === 'principal' ? 'principal' : 'spot';
+        i.name = i.name || (i.kind === 'principal' ? 'Luz principal' : 'Spot');
+        i.lumens = +i.lumens > 0 ? +i.lumens : 600;
+        i.x = +i.x || 0; i.y = +i.y || 0;
       }
       if (i.type === 'furniture') {
+        i.altura = +i.altura > 0 ? +i.altura : 0.75;
+        i.base = +i.base >= 0 ? +i.base : 0;
         if (i.shape !== 'circle') i.shape = 'rect';
         if (i.alt && (+i.alt.w > 0) && (+i.alt.h > 0)) {
           i.alt = { w: +i.alt.w, h: +i.alt.h };
@@ -138,11 +152,23 @@ App.Store = (function () {
   const findItem = (id) => { const a = activeArea(); return a && a.items.find((i) => i.id === id); };
   const totalArea = () => project.areas.reduce((s, a) => s + a.w * a.h, 0);
 
+  /* Resumo de iluminação de uma área. */
+  function luz(a) {
+    const lista = a.items.filter((i) => i.type === 'light');
+    const soma = (k) => lista.filter((i) => i.kind === k).reduce((t, i) => t + i.lumens, 0);
+    const principal = soma('principal'), spot = soma('spot');
+    const m2 = a.w * a.h;
+    return {
+      lista, principal, spot, total: principal + spot,
+      m2, alvo: a.lux * m2, lux: m2 ? (principal + spot) / m2 : 0,
+    };
+  }
+
   function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 
   return {
     uid, load, get, update, begin, live, commit, cancelTx, undo, redo, replace,
-    subscribe, activeArea, findItem, totalArea, projetoExemplo,
+    subscribe, activeArea, findItem, totalArea, projetoExemplo, luz,
     canUndo: () => past.length > 0,
     canRedo: () => future.length > 0,
   };

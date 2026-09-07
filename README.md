@@ -35,6 +35,17 @@ e sem servidor.
   tamanho definido para o cômodo.
 - **Portas e janelas**: entram na parede, com o arco de abertura da porta, e podem ser
   arrastadas ao longo da parede.
+- **Vista frontal**: o mesmo cômodo visto de dentro, olhando para uma parede de cada vez.
+  Cada móvel tem *altura* e *base do chão*, então dá para conferir o que fica na parede
+  (armário aéreo, TV, ar-condicionado), a altura do peitoril da janela e o que passa na
+  frente do quê — as peças mais distantes aparecem esmaecidas. Arrastar na vista anda pela
+  parede na horizontal e muda a altura do chão na vertical.
+- **Plano de luz em lúmens**: escolha o tipo de ambiente (o lux recomendado vem junto) e
+  posicione luminárias separadas em **principal** (plafon, pendente, lustre) e
+  **complementar** (spot, downlight, fita, arandela, abajur). O painel soma os lúmens
+  instalados, compara com o alvo (área × lux), mostra os lux resultantes e diz quanto falta
+  — inclusive um aviso quando a luz principal sozinha não segura o ambiente. Na planta cada
+  luminária desenha o halo em que ela entrega o lux alvo.
 - **Cotas e escala**: largura e profundidade cotadas fora do desenho, barra de escala e
   malha de 0,5 m / 1 m no fundo.
 - **Salvar**: tudo fica no navegador (localStorage). Dá para exportar/importar o projeto
@@ -59,6 +70,9 @@ e sem servidor.
    um móvel do catálogo quanto para uma forma que você criou.
 7. Para **remover**: o 🗑 no topo da aba *Editar*, o botão *Excluir* no fim dela, o 🗑 na
    lista de itens (aba *Áreas*) ou a tecla `Delete`. Qualquer exclusão volta com o ↶.
+
+Para o plano de luz, abra a aba **Luz**; para a vista frontal, use o seletor
+**Planta / Vista frontal** no alto do desenho e as setas para girar entre as quatro paredes.
 
 Atalhos no desktop: `Delete` apaga o item selecionado, setas movem 5 cm (com `Shift`, 1 cm),
 `Esc` cancela a ferramenta atual, roda do mouse dá zoom, arrastar no vazio move a planta.
@@ -97,7 +111,8 @@ css/styles.css      layout responsivo (sidebar no desktop, bottom sheet no celul
 js/geometry.js      geometria e formatação em metros (pt-BR)
 js/presets.js       catálogo de móveis com medidas reais
 js/store.js         estado do projeto, localStorage, desfazer/refazer
-js/renderer.js      desenho da planta no canvas (paredes, cotas, móveis, portas)
+js/renderer.js      desenho da planta no canvas (paredes, cotas, móveis, portas, luz)
+js/elevation.js     desenho da vista frontal (projeção dos móveis numa parede)
 js/editor.js        vista (zoom/pan), gestos de toque e mouse, edição dos itens
 js/ui.js            painéis, formulários, catálogo, menus, importar/exportar
 js/app.js           inicialização

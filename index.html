@@ -37,6 +37,7 @@
     <nav class="tabs" role="tablist">
       <button class="tab is-active" data-tab="areas" role="tab">Áreas</button>
       <button class="tab" data-tab="add" role="tab">Adicionar</button>
+      <button class="tab" data-tab="luz" role="tab">Luz</button>
       <button class="tab" data-tab="props" role="tab">Editar</button>
     </nav>
 
@@ -62,6 +63,19 @@
       <p class="muted small">Qualquer móvel do catálogo pode ter as medidas trocadas depois, na aba <b>Editar</b>.</p>
     </div>
 
+    <div class="pane" id="pane-luz">
+      <div class="field">
+        <label for="luxSel">Ambiente (lux recomendado)</label>
+        <select id="luxSel"></select>
+      </div>
+      <div id="luzResumo"></div>
+      <p class="muted small" style="margin:14px 0 6px"><b>Luz principal</b> — ilumina o ambiente todo</p>
+      <div class="catalog" id="luzCatPrincipal"></div>
+      <p class="muted small" style="margin:14px 0 6px"><b>Complementar</b> — spots, downlights, fita, arandela</p>
+      <div class="catalog" id="luzCatSpot"></div>
+      <ul class="item-list" id="luzList"></ul>
+    </div>
+
     <div class="pane" id="pane-props">
       <div id="propsEmpty" class="empty">Nenhum item selecionado.<br><span class="muted small">Toque num móvel, linha, porta ou janela da planta.</span></div>
       <div id="propsForm" hidden></div>
@@ -73,6 +87,15 @@
 
     <div class="stage-head">
       <div class="area-chip" id="areaChip">—</div>
+      <div class="viewswitch" id="viewSwitch">
+        <button data-mode="plan" class="is-on">Planta</button>
+        <button data-mode="front">Vista frontal</button>
+      </div>
+      <div class="wallnav" id="wallNav" hidden>
+        <button id="wallPrev" aria-label="Parede anterior">‹</button>
+        <span id="wallName">Parede superior</span>
+        <button id="wallNext" aria-label="Próxima parede">›</button>
+      </div>
     </div>
 
     <div class="toolbar" id="toolbar">
@@ -124,9 +147,17 @@
         <input id="aT" name="t" inputmode="decimal" value="10">
       </div>
       <div class="field">
+        <label for="aPd">Pé-direito (m)</label>
+        <input id="aPd" name="pd" inputmode="decimal" value="2,60">
+      </div>
+      <div class="field">
         <label for="aColor">Cor</label>
         <input id="aColor" name="color" type="color" value="#7c8cff">
       </div>
+    </div>
+    <div class="field">
+      <label for="aTipo">Ambiente</label>
+      <select id="aTipo"></select>
     </div>
     <p class="err" id="areaErr" hidden></p>
     <div class="dlg-actions">
@@ -161,6 +192,10 @@
         <input id="iH" inputmode="decimal" placeholder="0,60">
       </div>
     </div>
+    <div class="field">
+      <label for="iAlt">Altura (m) — usada na vista frontal</label>
+      <input id="iAlt" inputmode="decimal" placeholder="0,75">
+    </div>
     <p class="muted small" id="iHelp">Medidas em metros — pode usar vírgula.</p>
     <div class="dlg-actions">
       <button class="btn" value="cancel" formnovalidate>Cancelar</button>
@@ -187,6 +222,7 @@
 <script src="js/presets.js"></script>
 <script src="js/store.js"></script>
 <script src="js/renderer.js"></script>
+<script src="js/elevation.js"></script>
 <script src="js/editor.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/app.js"></script>

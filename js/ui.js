@@ -17,6 +17,8 @@ App.UI = (function () {
     ));
   }
 
+  const lm = (v) => Math.round(v).toLocaleString('pt-BR') + ' lm';
+
   function toast(msg) {
     const el = $('#toast');
     el.textContent = msg;
@@ -94,16 +96,18 @@ App.UI = (function () {
       $('#pane-areas').appendChild(ul);
     }
     if (!a) { ul.innerHTML = ''; return; }
-    const label = (i) => i.type === 'furniture' ? i.name
+    const label = (i) => (i.type === 'furniture' || i.type === 'light') ? i.name
       : i.type === 'line' ? 'Linha'
       : (i.kind === 'porta' ? 'Porta' : 'Janela');
     const size = (i) => i.type === 'furniture'
       ? (i.shape === 'circle' && Math.abs(i.w - i.h) < 1e-6
           ? `Ø ${G.num(i.w)} m` : `${G.num(i.w)}×${G.num(i.h)} m`) + (i.open ? ' · aberto' : '')
       : i.type === 'line' ? G.m(Math.hypot(i.x2 - i.x1, i.y2 - i.y1))
+      : i.type === 'light' ? lm(i.lumens)
       : G.m(i.width);
     const color = (i) => i.type === 'furniture' ? (i.color || '#e2e5ec')
-      : i.type === 'line' ? '#3b49c4' : '#8a91a3';
+      : i.type === 'line' ? '#3b49c4'
+      : i.type === 'light' ? '#f0b429' : '#8a91a3';
     ul.innerHTML = `<li class="muted small" style="padding:4px 2px">Itens de ${esc(a.name)} (${a.items.length}) — ✎ muda a medida, 🗑 exclui</li>`
       + a.items.map((i) => `
       <li class="item-row ${i.id === E.selectedId ? 'is-active' : ''}" data-id="${i.id}">
@@ -124,6 +128,13 @@ App.UI = (function () {
     $('#aW').value = area ? G.num(area.w) : '';
     $('#aH').value = area ? G.num(area.h) : '';
     $('#aT').value = area ? G.num(area.wall * 100, 0) : '10';
+    $('#aPd').value = G.num(area ? area.pd : 2.6);
+    const tipoSel = $('#aTipo');
+    if (!tipoSel.options.length) {
+      tipoSel.innerHTML = App.presets.ambientes
+        .map((x) => `<option value="${x.nome}">${x.nome} — ${x.lux} lux</option>`).join('');
+    }
+    tipoSel.value = area ? area.tipo : 'Sala de estar';
     $('#aColor').value = area ? area.color : randomColor();
     $('#areaErr').hidden = true;
     dlg.returnValue = '';
@@ -137,15 +148,21 @@ App.UI = (function () {
       const name = $('#aName').value.trim() || 'Área';
       if (!(w > 0) || !(h > 0)) { toast('Informe largura e profundidade em metros'); return; }
       const wall = Number.isFinite(t) && t >= 0 ? t : 0.1;
+      const pdv = G.parseNum($('#aPd').value);
+      const pd = pdv > 0 ? pdv : 2.6;
+      const tipo = $('#aTipo').value;
+      const amb = App.presets.ambientes.find((x) => x.nome === tipo);
+      const lux = amb ? amb.lux : 150;
       if (area) {
         S.update(() => {
           area.name = name; area.w = w; area.h = h; area.wall = wall; area.color = $('#aColor').value;
+          area.pd = pd; area.tipo = tipo; area.lux = lux;
           clampItems(area);
         });
         toast('Área atualizada');
       } else {
         const na = {
-          id: S.uid(), name, w, h, wall, color: $('#aColor').value, items: [],
+          id: S.uid(), name, w, h, wall, pd, tipo, lux, color: $('#aColor').value, items: [],
         };
         S.update((p) => { p.areas.push(na); p.activeId = na.id; });
         E.select(null);
@@ -189,6 +206,67 @@ App.UI = (function () {
       </button>`).join('') || '<p class="muted small">Nada nesta categoria.</p>';
   }
 
+  /* ---------- iluminação ---------- */
+  function renderLuz() {
+    const a = S.activeArea();
+    if (!a) return;
+    const sel = $('#luxSel');
+    if (!sel.options.length) {
+      sel.innerHTML = App.presets.ambientes
+        .map((x) => `<option value="${x.nome}">${x.nome} — ${x.lux} lux</option>`).join('');
+    }
+    if (document.activeElement !== sel) sel.value = a.tipo;
+
+    const L = S.luz(a);
+    const pct = L.alvo ? Math.min(100, Math.round((L.total / L.alvo) * 100)) : 0;
+    const falta = Math.max(0, L.alvo - L.total);
+    const spots = Math.ceil(falta / 600);
+    const nP = L.lista.filter((i) => i.kind === 'principal').length;
+    const nS = L.lista.filter((i) => i.kind === 'spot').length;
+    const ok = falta <= 0;
+
+    $('#luzResumo').innerHTML = `
+      <div class="luz-card">
+        <div class="luz-linha"><span>Área</span><b>${G.m2(L.m2)}</b></div>
+        <div class="luz-linha"><span>Alvo (${a.lux} lux)</span><b>${lm(L.alvo)}</b></div>
+        <div class="luz-linha"><span>Instalado</span><b>${lm(L.total)}</b></div>
+        <div class="luz-bar ${ok ? 'ok' : ''}"><i style="width:${pct}%"></i></div>
+        <p class="luz-msg ${ok ? 'ok' : 'falta'}">${ok
+          ? `Dá ${Math.round(L.lux)} lux — o ambiente está resolvido.`
+          : `Está em ${Math.round(L.lux)} lux. Faltam ${lm(falta)} ≈ ${spots} spot${spots > 1 ? 's' : ''} de 600 lm.`}</p>
+        <hr>
+        <div class="luz-linha"><span>Principal (${nP})</span><b>${lm(L.principal)}</b></div>
+        <div class="luz-linha"><span>Complementar (${nS})</span><b>${lm(L.spot)}</b></div>
+        ${L.principal < L.alvo * 0.6 && L.total > 0
+          ? '<p class="luz-msg falta">A luz principal sozinha está abaixo de 60% do alvo — com os spots desligados o ambiente fica escuro.</p>'
+          : ''}
+      </div>`;
+
+    const card = (l, i) => `
+      <button class="cat-item" data-luz="${i}">
+        <i class="round" style="background:${l.kind === 'principal' ? '#ffd76e' : '#f0b429'}"></i>
+        <b>${esc(l.nome)}</b>
+        <span>${lm(l.lumens)}</span>
+      </button>`;
+    const luzes = App.presets.luzes;
+    $('#luzCatPrincipal').innerHTML = luzes.map((l, i) => l.kind === 'principal' ? card(l, i) : '').join('');
+    $('#luzCatSpot').innerHTML = luzes.map((l, i) => l.kind === 'spot' ? card(l, i) : '').join('');
+
+    $('#luzList').innerHTML = L.lista.length
+      ? `<li class="muted small" style="padding:4px 2px">Luminárias nesta área (${L.lista.length})</li>`
+        + L.lista.map((i) => `
+        <li class="item-row ${i.id === E.selectedId ? 'is-active' : ''}" data-id="${i.id}">
+          <span class="dot" style="background:${i.kind === 'principal' ? '#ffd76e' : '#f0b429'}"></span>
+          <span class="nm">${esc(i.name)}</span>
+          <span class="sz">${lm(i.lumens)}</span>
+          <span class="row-acts">
+            <button class="mini" data-act="edit" title="Editar">✎</button>
+            <button class="mini danger" data-act="del" title="Excluir">🗑</button>
+          </span>
+        </li>`).join('')
+      : '<li class="muted small" style="padding:10px 2px">Nenhuma luminária ainda. Escolha uma acima — ela entra no teto, no centro da tela.</li>';
+  }
+
   /* ---------- propriedades ---------- */
   function fieldNum(id, label, value, step) {
     return `<div class="field">
@@ -226,10 +304,32 @@ App.UI = (function () {
           <option value="rect" ${redondo ? '' : 'selected'}>Retângulo</option>
           <option value="circle" ${redondo ? 'selected' : ''}>Círculo / oval</option>
         </select></div>
+      <div class="row">${fieldNum('pAlt', 'Altura (m)', G.num(it.altura))}${fieldNum('pBase', 'Base do chão (m)', G.num(it.base))}</div>
+      <p class="muted small">Altura e base aparecem na <b>vista frontal</b> — base &gt; 0 para o que fica na parede (armário aéreo, TV, ar-condicionado).</p>
       <div class="row">${fieldNum('pX', 'X do centro (m)', G.num(it.x))}${fieldNum('pY', 'Y do centro (m)', G.num(it.y))}</div>
       <div class="row">${fieldNum('pR', 'Rotação (°)', G.num(it.rot || 0, 0))}
         <div class="field"><label for="pColor">Cor</label><input id="pColor" type="color" value="${toHex(it.color)}"></div></div>
       <button class="btn btn-danger block" data-act="del">Excluir móvel</button>`;
+    }
+    if (it.type === 'light') {
+      const principal = it.kind === 'principal';
+      return `
+      <div class="prop-head"><span class="badge">${principal ? 'Luz principal' : 'Complementar'}</span>
+        <span class="grow"></span>
+        <button class="mini" data-act="dup" title="Duplicar">⧉</button>
+        <button class="mini danger" data-act="del" title="Excluir luminária">🗑</button>
+      </div>
+      <div class="field"><label for="pName">Nome</label><input id="pName" value="${esc(it.name || '')}"></div>
+      <div class="field"><label>Tipo</label>
+        <div class="seg">
+          <button type="button" data-act="luzkind" data-val="principal" class="${principal ? 'is-on' : ''}">Principal</button>
+          <button type="button" data-act="luzkind" data-val="spot" class="${principal ? '' : 'is-on'}">Complementar</button>
+        </div>
+      </div>
+      <div class="row">${fieldNum('pLm', 'Lúmens (lm)', Math.round(it.lumens))}${fieldNum('pX', 'X (m)', G.num(it.x))}</div>
+      <div class="row">${fieldNum('pY', 'Y (m)', G.num(it.y))}<div class="field"></div></div>
+      <p class="muted small">O halo na planta mostra o alcance em que essa luminária sozinha entrega ${S.activeArea().lux} lux.</p>
+      <button class="btn btn-danger block" data-act="del">Excluir luminária</button>`;
     }
     if (it.type === 'line') {
       const len = Math.hypot(it.x2 - it.x1, it.y2 - it.y1);
@@ -272,6 +372,7 @@ App.UI = (function () {
         <button class="mini danger" data-act="del" title="Excluir ${nomeAbertura}">🗑</button>
       </div>
       <div class="row">${fieldNum('pOw', 'Largura (m)', G.num(it.width))}${fieldNum('pOp', 'Distância do canto (m)', G.num(it.pos))}</div>
+      <div class="row">${fieldNum('pOh', 'Altura do vão (m)', G.num(it.altura))}${fieldNum('pOb', it.kind === 'porta' ? 'Base do chão (m)' : 'Peitoril (m)', G.num(it.base))}</div>
       <div class="field"><label for="pWall">Parede</label>
         <select id="pWall">${Object.entries(paredes).map(([k, v]) =>
           `<option value="${k}" ${it.wall === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
@@ -297,7 +398,8 @@ App.UI = (function () {
     empty.hidden = true; box.hidden = false;
     const key = it.id + ':' + it.type + ':' + (it.kind || '') + ':' + (it.shape || '')
       + ':' + (it.alt ? 'alt' : '') + ':' + (it.open ? 'aberto' : '')
-      + ':' + (it.wall || '') + (it.flip ? 'f' : '') + (it.out ? 'o' : '');
+      + ':' + (it.wall || '') + (it.flip ? 'f' : '') + (it.out ? 'o' : '')
+      + ':' + (it.type === 'light' ? it.kind : '');
     if (key !== lastPropsKey) {
       lastPropsKey = key;
       box.innerHTML = propsHTML(it);
@@ -318,13 +420,20 @@ App.UI = (function () {
       setVal('pW', G.num(it.w)); setVal('pH', G.num(it.h));
       setVal('pX', G.num(it.x)); setVal('pY', G.num(it.y));
       setVal('pR', G.num(it.rot || 0, 0));
+      setVal('pAlt', G.num(it.altura)); setVal('pBase', G.num(it.base));
       if (it.alt) { setVal('pAW', G.num(it.alt.w)); setVal('pAH', G.num(it.alt.h)); }
+    } else if (it.type === 'light') {
+      setVal('pName', it.name || '');
+      setVal('pLm', Math.round(it.lumens));
+      setVal('pX', G.num(it.x)); setVal('pY', G.num(it.y));
     } else if (it.type === 'line') {
       setVal('pLen', G.num(Math.hypot(it.x2 - it.x1, it.y2 - it.y1)));
       setVal('pAng', G.num(G.r2d(Math.atan2(it.y2 - it.y1, it.x2 - it.x1)), 0));
     } else {
       setVal('pOw', G.num(it.width));
       setVal('pOp', G.num(it.pos));
+      setVal('pOh', G.num(it.altura));
+      setVal('pOb', G.num(it.base));
       const w = document.getElementById('pWall');
       if (w && document.activeElement !== w) w.value = it.wall;
     }
@@ -361,10 +470,18 @@ App.UI = (function () {
       onNum('pX', (v) => { it.x = v; fix(); });
       onNum('pY', (v) => { it.y = v; fix(); });
       onNum('pR', (v) => { it.rot = ((v % 360) + 360) % 360; fix(); });
+      onNum('pAlt', (v) => { it.altura = G.clamp(v, 0.01, 6); });
+      onNum('pBase', (v) => { it.base = G.clamp(v, 0, 6); });
       if (it.alt) {
         onNum('pAW', (v) => { it.alt.w = G.clamp(v, 0.05, 50); });
         onNum('pAH', (v) => { it.alt.h = G.clamp(v, 0.05, 50); });
       }
+    } else if (it.type === 'light') {
+      const nm = document.getElementById('pName');
+      nm.addEventListener('change', () => S.update(() => { it.name = nm.value.trim() || 'Luminária'; }));
+      onNum('pLm', (v) => { it.lumens = G.clamp(Math.round(v), 10, 20000); });
+      onNum('pX', (v) => { it.x = G.clamp(v, 0, a.w); });
+      onNum('pY', (v) => { it.y = G.clamp(v, 0, a.h); });
     } else if (it.type === 'line') {
       onNum('pLen', (v) => {
         const ang = Math.atan2(it.y2 - it.y1, it.x2 - it.x1);
@@ -393,6 +510,8 @@ App.UI = (function () {
         const run = (it.wall === 'top' || it.wall === 'bottom') ? a.w : a.h;
         it.pos = G.clamp(v, 0, Math.max(0, run - it.width));
       });
+      onNum('pOh', (v) => { it.altura = G.clamp(v, 0.2, a.pd); });
+      onNum('pOb', (v) => { it.base = G.clamp(v, 0, Math.max(0, a.pd - it.altura)); });
     }
 
   }
@@ -413,6 +532,7 @@ App.UI = (function () {
       });
       if (act === 'hinge') S.update(() => { it.flip = b.dataset.val === 'b'; });
       if (act === 'swing') S.update(() => { it.out = b.dataset.val === 'out'; });
+      if (act === 'luzkind') S.update(() => { it.kind = b.dataset.val === 'principal' ? 'principal' : 'spot'; });
       if (act === 'equal') S.update(() => { it.h = it.w; it.rot = 0; E.keepInside(it, S.activeArea()); });
       if (act === 'toggle') E.toggleOpen(it.id);
       if (act === 'addalt') {
@@ -450,7 +570,7 @@ App.UI = (function () {
   function shapeDialog(shape) {
     const dlg = $('#itemDlg');
     $('#iShape').value = shape || 'rect';
-    $('#iName').value = ''; $('#iW').value = ''; $('#iH').value = '';
+    $('#iName').value = ''; $('#iW').value = ''; $('#iH').value = ''; $('#iAlt').value = '';
     applyShapeFields();
     dlg.returnValue = '';
     dlg.showModal();
@@ -461,9 +581,11 @@ App.UI = (function () {
       const h = v === 'rect' ? G.parseNum($('#iH').value) : w;
       if (!(w > 0) || !(h > 0)) { toast('Informe a medida em metros'); return; }
       const padrao = v === 'circle' ? 'Círculo' : v === 'square' ? 'Quadrado' : 'Móvel';
+      const alt = G.parseNum($('#iAlt').value);
       E.addFurniture({
         nome: $('#iName').value.trim() || padrao,
         w, h,
+        altura: alt > 0 ? alt : 0.75,
         forma: v === 'circle' ? 'circle' : 'rect',
         cor: '#e2e5ec',
       });
@@ -481,10 +603,20 @@ App.UI = (function () {
       scheduled = false;
       renderAreas();
       renderItems();
+      renderLuz();
       renderProps();
+      renderView();
       $('#btnUndo').disabled = !S.canUndo();
       $('#btnRedo').disabled = !S.canRedo();
     });
+  }
+
+  function renderView() {
+    const m = E.mode;
+    $$('#viewSwitch button').forEach((b) => b.classList.toggle('is-on', b.dataset.mode === m));
+    $('#wallNav').hidden = m !== 'front';
+    $('#toolbar').hidden = m === 'front';
+    if (m === 'front') $('#wallName').textContent = 'Parede ' + App.elev.NOMES[E.frontWall];
   }
 
   /* ---------- import / export ---------- */
@@ -562,6 +694,47 @@ App.UI = (function () {
     });
 
     $('#btnNewArea').addEventListener('click', () => areaDialog(null));
+
+    const addLuz = (ev) => {
+      const b = ev.target.closest('[data-luz]');
+      if (!b) return;
+      E.addLight(App.presets.luzes[+b.dataset.luz]);
+      if (isMobile()) openPanel(false);
+    };
+    $('#luzCatPrincipal').addEventListener('click', addLuz);
+    $('#luzCatSpot').addEventListener('click', addLuz);
+
+    $('#luzList').addEventListener('click', (ev) => {
+      const row = ev.target.closest('.item-row');
+      if (!row) return;
+      E.select(row.dataset.id);
+      const act = ev.target.closest('[data-act]');
+      if (act && act.dataset.act === 'del') {
+        E.removeSelected();
+        toast('Luminária excluída — desfaça no ↶ lá em cima');
+        return;
+      }
+      setTab('props');
+    });
+
+    $('#luxSel').addEventListener('change', () => {
+      const amb = App.presets.ambientes.find((x) => x.nome === $('#luxSel').value);
+      if (!amb) return;
+      S.update(() => {
+        const a = S.activeArea();
+        a.tipo = amb.nome; a.lux = amb.lux;
+      });
+      E.draw();
+    });
+
+    $('#viewSwitch').addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-mode]');
+      if (!b) return;
+      E.setMode(b.dataset.mode);
+      if (b.dataset.mode === 'front') hint('Arraste um móvel: para os lados anda na parede, para cima muda a altura do chão');
+    });
+    $('#wallPrev').addEventListener('click', () => E.girarParede(-1));
+    $('#wallNext').addEventListener('click', () => E.girarParede(1));
 
     $('#catFilter').addEventListener('change', renderCatalog);
     $('#catalog').addEventListener('click', (ev) => {
@@ -650,5 +823,10 @@ App.UI = (function () {
     S.subscribe(render);
   }
 
-  return { init, render, toast, hint, setTab, isMobile, openPanel };
+  const activeTab = () => {
+    const t = document.querySelector('.tab.is-active');
+    return t ? t.dataset.tab : 'areas';
+  };
+
+  return { init, render, toast, hint, setTab, isMobile, openPanel, activeTab };
 })();

@@ -259,6 +259,55 @@ App.render = (function () {
     pill(ctx, G.m(len), (x1 + x2) / 2, (y1 + y2) / 2 - 14, C.line);
   }
 
+  /* Raio, em metros, em que a luminária sozinha entrega o lux alvo do ambiente. */
+  function raioLuz(it, lux) {
+    return G.clamp(Math.sqrt(it.lumens / (Math.max(50, lux) * Math.PI)), 0.35, 6);
+  }
+
+  function drawGlow(ctx, area, it, v, X, Y) {
+    const r = raioLuz(it, area.lux) * v.scale;
+    const g = ctx.createRadialGradient(X(it.x), Y(it.y), 0, X(it.x), Y(it.y), r);
+    g.addColorStop(0, 'rgba(255,190,50,.20)');
+    g.addColorStop(.6, 'rgba(255,190,50,.06)');
+    g.addColorStop(1, 'rgba(255,190,50,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(X(it.x), Y(it.y), r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawLight(ctx, it, v, X, Y, selected) {
+    const sx = X(it.x), sy = Y(it.y);
+    const principal = it.kind === 'principal';
+    const r = principal ? 12 : 7;
+    if (principal) {
+      ctx.strokeStyle = '#d99b16';
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i < 8; i++) {
+        const a = (i * Math.PI) / 4;
+        ctx.beginPath();
+        ctx.moveTo(sx + Math.cos(a) * (r + 3), sy + Math.sin(a) * (r + 3));
+        ctx.lineTo(sx + Math.cos(a) * (r + 8), sy + Math.sin(a) * (r + 8));
+        ctx.stroke();
+      }
+    }
+    ctx.beginPath();
+    ctx.arc(sx, sy, r, 0, Math.PI * 2);
+    ctx.fillStyle = principal ? '#ffd76e' : '#f0b429';
+    ctx.fill();
+    ctx.lineWidth = selected ? 3 : 1.5;
+    ctx.strokeStyle = selected ? C.brand : '#a9761a';
+    ctx.stroke();
+    if (!principal) {
+      ctx.beginPath();
+      ctx.arc(sx, sy, r - 3.5, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255,255,255,.85)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+    if (selected) pill(ctx, it.name + ' · ' + it.lumens + ' lm', sx, sy - r - 14, '#8a5c05');
+  }
+
   function drawHandles(ctx, handles) {
     handles.forEach((h) => {
       ctx.beginPath();
@@ -292,7 +341,7 @@ App.render = (function () {
 
   /* Alças de manipulação do item selecionado (em coordenadas de tela). */
   function handlesFor(area, it, v, X, Y) {
-    if (!it) return [];
+    if (!it || it.type === 'light') return [];
     if (it.type === 'line') {
       return [
         { kind: 'p1', sx: X(it.x1), sy: Y(it.y1) },
@@ -350,6 +399,17 @@ App.render = (function () {
     ctx.fillStyle = C.floor;
     ctx.fillRect(X(0), Y(0), area.w * v.scale, area.h * v.scale);
 
+    // brilho das luminárias, no piso e por baixo dos móveis
+    const luzes = area.items.filter((i) => i.type === 'light');
+    if (luzes.length) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(X(0), Y(0), area.w * v.scale, area.h * v.scale);
+      ctx.clip();
+      luzes.forEach((i) => drawGlow(ctx, area, i, v, X, Y));
+      ctx.restore();
+    }
+
     drawWalls(ctx, area, v, X, Y);
 
     const sel = o.selectedId;
@@ -362,6 +422,9 @@ App.render = (function () {
 
     // nome + área do cômodo, sempre legível por cima dos móveis
     roomLabel(ctx, area, X(area.w / 2), Y(area.h / 2));
+
+    // luminárias por último: são o que se procura no plano de luz
+    luzes.forEach((i) => drawLight(ctx, i, v, X, Y, i.id === sel));
 
     // linha sendo desenhada
     if (o.draft) {
@@ -384,6 +447,11 @@ App.render = (function () {
   }
 
   render.openingGeom = openingGeom;
+  render.raioLuz = raioLuz;
+  render.pill = pill;
+  render.roundRect = roundRect;
+  render.dimension = dimension;
+  render.C = C;
   render.handlesFor = handlesFor;
   return render;
 })();

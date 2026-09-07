@@ -26,6 +26,7 @@ button,input,select{font:inherit;color:inherit}
 .muted{color:var(--ink-2)}
 .small{font-size:12.5px}
 hr{border:0;border-top:1px solid var(--line);margin:6px 0}
+[hidden]{display:none!important}
 
 /* ---------- topbar ---------- */
 .topbar{
@@ -65,7 +66,33 @@ hr{border:0;border-top:1px solid var(--line);margin:6px 0}
 .stage{position:relative;flex:1;min-width:0;background:var(--bg);touch-action:none;overflow:hidden}
 #plan{display:block;width:100%;height:100%;touch-action:none}
 
-.stage-head{position:absolute;top:10px;left:10px;right:10px;display:flex;gap:8px;pointer-events:none}
+.stage-head{
+  position:absolute;top:10px;left:10px;right:10px;display:flex;gap:8px;
+  flex-wrap:wrap;align-items:flex-start;pointer-events:none;
+}
+.viewswitch,.wallnav{
+  display:flex;background:var(--surface);border:1px solid var(--line);border-radius:999px;
+  padding:3px;box-shadow:var(--shadow);pointer-events:auto;
+}
+.viewswitch button,.wallnav button{
+  background:none;border:0;border-radius:999px;padding:6px 12px;cursor:pointer;
+  font-size:13px;color:var(--ink-2);
+}
+.viewswitch button.is-on{background:var(--brand-soft);color:var(--brand);font-weight:600}
+.wallnav{align-items:center;gap:2px}
+.wallnav span{font-size:13px;padding:0 4px;white-space:nowrap}
+.wallnav button{font-size:17px;line-height:1;padding:4px 10px}
+.luz-card{
+  border:1px solid var(--line);border-radius:var(--radius);padding:12px;background:var(--surface-2);
+}
+.luz-linha{display:flex;justify-content:space-between;gap:8px;font-size:13.5px;padding:3px 0}
+.luz-linha b{font-variant-numeric:tabular-nums}
+.luz-bar{height:10px;border-radius:6px;background:#e2e5ec;overflow:hidden;margin:10px 0 6px}
+.luz-bar i{display:block;height:100%;background:linear-gradient(90deg,#f0b429,#e08b1e)}
+.luz-bar.ok i{background:linear-gradient(90deg,#5cb87a,#3f9e63)}
+.luz-msg{font-size:12.5px;margin:6px 0 0}
+.luz-msg.ok{color:#2f7d4f}
+.luz-msg.falta{color:#a4700c}
 .area-chip{
   background:var(--surface);border:1px solid var(--line);border-radius:999px;
   padding:6px 12px;font-size:13px;box-shadow:var(--shadow);max-width:100%;

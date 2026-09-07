@@ -3,7 +3,8 @@ window.App = window.App || {};
 
 App.geo = (function () {
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-  const snap = (v, step) => Math.round(v / step) * step;
+  // arredonda o resíduo binário (0,05 × 28 = 1,4000000000000001)
+  const snap = (v, step) => Math.round((Math.round(v / step) * step) * 1000) / 1000;
   const d2r = (d) => (d * Math.PI) / 180;
   const r2d = (r) => (r * 180) / Math.PI;
 

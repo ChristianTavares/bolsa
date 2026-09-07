@@ -9,7 +9,10 @@ App.Editor = (function () {
   const ANG_SNAP = 15;     // graus
 
   let canvas, ctx, stage;
-  let view = { scale: 100, ox: 0, oy: 0 };
+  let view = { scale: 100, ox: 0, oy: 0 };    // planta: ox/oy = origem do cômodo
+  let viewF = { scale: 100, ox: 0, oy: 0 };   // vista frontal: oy = linha do piso
+  let mode = 'plan';                          // 'plan' | 'front'
+  let frontWall = 'top';
   let tool = 'select';
   let selectedId = null;
   let draft = null;
@@ -24,7 +27,10 @@ App.Editor = (function () {
   let pinch = null;
 
   const area = () => S.activeArea();
+  const V = () => (mode === 'plan' ? view : viewF);
   const toWorld = (sx, sy) => ({ x: (sx - view.ox) / view.scale, y: (sy - view.oy) / view.scale });
+  /* Tela -> (s ao longo da parede, z altura) na vista frontal. */
+  const toElev = (sx, sy) => ({ s: (sx - viewF.ox) / viewF.scale, z: (viewF.oy - sy) / viewF.scale });
 
   /* ---------- render loop ---------- */
   function resize() {
@@ -43,6 +49,14 @@ App.Editor = (function () {
     if (raf) return;
     raf = requestAnimationFrame(() => {
       raf = 0;
+      if (mode === 'front') {
+        handles = [];
+        App.elev.render(ctx, {
+          area: area(), wall: frontWall, view: viewF,
+          width: cssW, height: cssH, selectedId,
+        });
+        return;
+      }
       handles = App.render(ctx, {
         area: area(), view, width: cssW, height: cssH,
         selectedId, draft,
@@ -50,24 +64,33 @@ App.Editor = (function () {
     });
   }
 
-  function fit(animate) {
+  function fit() {
     const a = area();
     if (!a || !cssW) return;
     const pad = 70;
+    if (mode === 'front') {
+      const L = App.elev.run(a, frontWall);
+      const s = Math.min((cssW - pad * 2) / L, (cssH - pad * 2) / a.pd);
+      viewF.scale = G.clamp(s, 4, 600);
+      viewF.ox = cssW / 2 - (L / 2) * viewF.scale;
+      viewF.oy = cssH / 2 + (a.pd / 2) * viewF.scale;
+      draw();
+      return;
+    }
     const w = a.w + 2 * a.wall, h = a.h + 2 * a.wall;
     const s = Math.min((cssW - pad * 2) / w, (cssH - pad * 2) / h);
     view.scale = G.clamp(s, 4, 600);
     view.ox = cssW / 2 - (a.w / 2) * view.scale;
     view.oy = cssH / 2 - (a.h / 2) * view.scale;
-    void animate;
     draw();
   }
 
   function zoomAt(factor, sx, sy) {
-    const before = toWorld(sx, sy);
-    view.scale = G.clamp(view.scale * factor, 6, 800);
-    view.ox = sx - before.x * view.scale;
-    view.oy = sy - before.y * view.scale;
+    const v = V();
+    const k = G.clamp(v.scale * factor, 6, 800) / v.scale;
+    v.scale *= k;
+    v.ox = sx - (sx - v.ox) * k;
+    v.oy = sy - (sy - v.oy) * k;
     draw();
   }
 
@@ -93,6 +116,9 @@ App.Editor = (function () {
     const tol = 12 / view.scale;
     const ordered = a.items.slice().reverse();
     for (const it of ordered) {
+      if (it.type === 'light' && Math.hypot(wx - it.x, wy - it.y) <= 0.14 + tol) return it;
+    }
+    for (const it of ordered) {
       if (it.type === 'line' &&
           G.distToSegment(wx, wy, it.x1, it.y1, it.x2, it.y2) <= tol) return it;
     }
@@ -105,6 +131,22 @@ App.Editor = (function () {
         if (wx >= g.rect.x1 - tol && wx <= g.rect.x2 + tol &&
             wy >= g.rect.y1 - tol && wy <= g.rect.y2 + tol) return it;
       }
+    }
+    return null;
+  }
+
+  /* Item sob o ponto na vista frontal (da frente para o fundo). */
+  function hitElev(px, py) {
+    const a = area();
+    if (!a) return null;
+    const { s, z } = toElev(px, py);
+    const tol = 8 / viewF.scale;
+    const lista = App.elev.pecas(a, frontWall).slice().reverse();
+    for (const p of lista) {
+      if (s >= p.s1 - tol && s <= p.s2 + tol && z >= p.z1 - tol && z <= p.z2 + tol) return p.it;
+    }
+    for (const p of App.elev.vaos(a, frontWall)) {
+      if (s >= p.s1 - tol && s <= p.s2 + tol && z >= p.z1 - tol && z <= p.z2 + tol) return p.it;
     }
     return null;
   }
@@ -162,6 +204,8 @@ App.Editor = (function () {
       x: G.clamp(c.x, p.w / 2, Math.max(p.w / 2, a.w - p.w / 2)),
       y: G.clamp(c.y, p.h / 2, Math.max(p.h / 2, a.h - p.h / 2)),
       rot: 0, color: p.cor || '#e2e5ec',
+      altura: p.altura > 0 ? p.altura : 0.75,
+      base: p.base >= 0 ? p.base : 0,
     };
     if (p.alt && p.alt.w > 0 && p.alt.h > 0) {
       it.alt = { w: p.alt.w, h: p.alt.h };
@@ -172,6 +216,22 @@ App.Editor = (function () {
     onHint(p.nome + ' adicionado — ' + (it.alt
       ? 'toque nele de novo para abrir'
       : 'arraste na planta ou mude a medida na aba Editar'));
+  }
+
+  function addLight(p) {
+    const a = area();
+    if (!a) return;
+    const c = centerOfView();
+    const it = {
+      id: S.uid(), type: 'light',
+      kind: p.kind === 'principal' ? 'principal' : 'spot',
+      name: p.nome, lumens: p.lumens,
+      x: G.snap(G.clamp(c.x, 0.15, a.w - 0.15), SNAP),
+      y: G.snap(G.clamp(c.y, 0.15, a.h - 0.15), SNAP),
+    };
+    S.update(() => { a.items.push(it); });
+    select(it.id);
+    onHint(p.nome + ' · ' + p.lumens + ' lm — arraste para posicionar no teto');
   }
 
   function addOpening(kind, wall, posCenter) {
@@ -279,9 +339,26 @@ App.Editor = (function () {
     }
     if (pointers.size > 2) return;
 
-    const w = toWorld(p.x, p.y);
     const a = area();
     if (!a) return;
+
+    if (mode === 'front') {
+      const alvo = hitElev(p.x, p.y);
+      if (alvo) {
+        const jaEstava = selectedId === alvo.id;
+        select(alvo.id);
+        S.begin();
+        gesture = {
+          type: 'elev', id: alvo.id, tx: true, start: p, moved: false, wasSelected: jaEstava,
+          grab: toElev(p.x, p.y), orig: JSON.parse(JSON.stringify(alvo)),
+        };
+        return;
+      }
+      gesture = { type: 'pan', start: p, origin: { ox: viewF.ox, oy: viewF.oy }, moved: false, hitEmpty: true };
+      return;
+    }
+
+    const w = toWorld(p.x, p.y);
 
     if (tool === 'line') {
       const sp = snapPoint(w);
@@ -326,6 +403,36 @@ App.Editor = (function () {
     gesture = { type: 'pan', start: p, origin: { ox: view.ox, oy: view.oy }, moved: false, hitEmpty: true };
   }
 
+  /* Arraste na vista frontal: horizontal anda pela parede, vertical muda a altura do chão. */
+  function moveElev(p) {
+    const a = area(), it = getSelected();
+    if (!it) return;
+    const o = gesture.orig;
+    const cur = toElev(p.x, p.y);
+    const ds = cur.s - gesture.grab.s, dz = cur.z - gesture.grab.z;
+    S.live(() => {
+      const d = App.elev.moveBy(frontWall, ds);
+      if (it.type === 'furniture') {
+        it.x = G.snap(o.x + d.dx, SNAP); it.y = G.snap(o.y + d.dy, SNAP);
+        keepInside(it, a);
+        it.base = G.clamp(G.snap(o.base + dz, SNAP), 0, Math.max(0, a.pd - 0.05));
+      } else if (it.type === 'light') {
+        it.x = G.clamp(G.snap(o.x + d.dx, SNAP), 0, a.w);
+        it.y = G.clamp(G.snap(o.y + d.dy, SNAP), 0, a.h);
+      } else if (it.type === 'opening') {
+        const sinal = (frontWall === 'top' || frontWall === 'right') ? 1 : -1;
+        const run = (it.wall === 'top' || it.wall === 'bottom') ? a.w : a.h;
+        it.pos = G.clamp(G.snap(o.pos + sinal * ds, SNAP), 0, Math.max(0, run - it.width));
+        it.base = G.clamp(G.snap(o.base + dz, SNAP), 0, Math.max(0, a.pd - it.altura));
+      }
+    });
+    onHint(it.type === 'furniture'
+      ? it.name + ': altura ' + G.m(it.altura) + ' · base ' + G.m(it.base)
+      : it.type === 'opening'
+        ? (it.kind === 'porta' ? 'Porta' : 'Janela') + ': peitoril ' + G.m(it.base)
+        : itemHint(it));
+  }
+
   function onMove(ev) {
     if (!pointers.has(ev.pointerId)) return;
     const p = localPos(ev);
@@ -355,11 +462,13 @@ App.Editor = (function () {
     if (dist > 5) gesture.moved = true;
 
     if (gesture.type === 'pan') {
-      view.ox = gesture.origin.ox + (p.x - gesture.start.x);
-      view.oy = gesture.origin.oy + (p.y - gesture.start.y);
+      const v = V();
+      v.ox = gesture.origin.ox + (p.x - gesture.start.x);
+      v.oy = gesture.origin.oy + (p.y - gesture.start.y);
       draw();
       return;
     }
+    if (gesture.type === 'elev') { moveElev(p); return; }
     if (gesture.type === 'line') {
       let sp = snapPoint(w);
       const dx = sp.x - draft.x1, dy = sp.y - draft.y1;
@@ -395,6 +504,9 @@ App.Editor = (function () {
         const horiz = (it.wall === 'top' || it.wall === 'bottom');
         const run = horiz ? a.w : a.h;
         it.pos = G.clamp(G.snap(o.pos + (horiz ? dx : dy), SNAP), 0, Math.max(0, run - it.width));
+      } else if (it.type === 'light') {
+        it.x = G.clamp(G.snap(o.x + dx, SNAP), 0, a.w);
+        it.y = G.clamp(G.snap(o.y + dy, SNAP), 0, a.h);
       }
     });
     onHint(itemHint(it));
@@ -453,6 +565,7 @@ App.Editor = (function () {
     if (it.type === 'furniture') return it.name + ': ' + G.num(it.w) + ' × ' + G.num(it.h) + ' m · ' + Math.round(it.rot || 0) + '°';
     if (it.type === 'line') return 'Linha: ' + G.m(Math.hypot(it.x2 - it.x1, it.y2 - it.y1));
     if (it.type === 'opening') return (it.kind === 'porta' ? 'Porta' : 'Janela') + ': ' + G.m(it.width);
+    if (it.type === 'light') return it.name + ': ' + it.lumens + ' lm';
     return '';
   }
 
@@ -478,11 +591,13 @@ App.Editor = (function () {
         setTool('select');
       } else if (gesture.tx) {
         // toque curto num item já selecionado = abrir/fechar (tolera o tremido do dedo)
-        const toque = gesture.type === 'item' && gesture.wasSelected && (gesture.maxMove || 0) <= 8;
+        const toque = (gesture.type === 'item' || gesture.type === 'elev')
+          && gesture.wasSelected && (gesture.maxMove || 0) <= 8;
         if (toque) {
           const it = getSelected(), o = gesture.orig;
-          if (it && it.type === 'furniture') S.live(() => { it.x = o.x; it.y = o.y; });
-          if (it && it.type === 'opening') S.live(() => { it.pos = o.pos; });
+          if (it && it.type === 'furniture') S.live(() => { it.x = o.x; it.y = o.y; it.base = o.base; });
+          if (it && it.type === 'opening') S.live(() => { it.pos = o.pos; it.base = o.base; });
+          if (it && it.type === 'light') S.live(() => { it.x = o.x; it.y = o.y; });
         }
         S.commit();
         if (toque) { toggleOpen(gesture.id) || cycleDoor(gesture.id); }
@@ -538,22 +653,34 @@ App.Editor = (function () {
     if (!a) return;
     const pad = 90;
     const scale = 140;
-    const W = Math.round((a.w + 2 * a.wall) * scale + pad * 2);
-    const H = Math.round((a.h + 2 * a.wall) * scale + pad * 2);
+    const frente = mode === 'front';
+    const L = frente ? App.elev.run(a, frontWall) : a.w + 2 * a.wall;
+    const A = frente ? a.pd : a.h + 2 * a.wall;
+    const W = Math.round(L * scale + pad * 2);
+    const H = Math.round(A * scale + pad * 2);
     const c = document.createElement('canvas');
     const dpr = 2;
     c.width = W * dpr; c.height = H * dpr;
     const cx = c.getContext('2d');
     cx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    App.render(cx, {
-      area: a, width: W, height: H, selectedId: null, exportMode: true,
-      view: { scale, ox: pad + a.wall * scale, oy: pad + a.wall * scale },
-    });
+    if (frente) {
+      App.elev.render(cx, {
+        area: a, wall: frontWall, width: W, height: H, selectedId: null, exportMode: true,
+        view: { scale, ox: pad, oy: pad + a.pd * scale },
+      });
+    } else {
+      App.render(cx, {
+        area: a, width: W, height: H, selectedId: null, exportMode: true,
+        view: { scale, ox: pad + a.wall * scale, oy: pad + a.wall * scale },
+      });
+    }
     c.toBlob((blob) => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = (filename || a.name.replace(/\s+/g, '-').toLowerCase()) + '.png';
+      const base = filename || a.name.replace(/\s+/g, '-').toLowerCase()
+        + (frente ? '-parede-' + App.elev.NOMES[frontWall] : '');
+      link.download = base + '.png';
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -562,7 +689,28 @@ App.Editor = (function () {
   }
 
   /* ---------- API ---------- */
+  function setMode(m) {
+    if (m === mode) return;
+    mode = m;
+    if (mode === 'front') setTool('select');
+    draft = null;
+    fit();
+    onChange();
+  }
+
+  function setFrontWall(w) {
+    frontWall = w;
+    fit();
+    onChange();
+  }
+
+  function girarParede(passo) {
+    const i = App.elev.ORDEM.indexOf(frontWall);
+    setFrontWall(App.elev.ORDEM[(i + passo + 4) % 4]);
+  }
+
   function setTool(t) {
+    if (mode === 'front') t = 'select';
     tool = t;
     document.querySelectorAll('.tool').forEach((b) => b.classList.toggle('is-active', b.dataset.tool === t));
     if (t === 'line') onHint('Arraste dentro do cômodo para desenhar a linha');
@@ -592,11 +740,14 @@ App.Editor = (function () {
   }
 
   return {
-    init, draw, fit, resize, setTool, select, getSelected, addFurniture, addOpening, keepInside, toggleOpen, cycleDoor,
+    init, draw, fit, resize, setTool, select, getSelected, addFurniture, addOpening, addLight,
+    keepInside, toggleOpen, cycleDoor, setMode, setFrontWall, girarParede,
     removeSelected, duplicateSelected, exportPNG, zoomAt,
     zoomIn: () => zoomAt(1.25, cssW / 2, cssH / 2),
     zoomOut: () => zoomAt(0.8, cssW / 2, cssH / 2),
     get selectedId() { return selectedId; },
     get tool() { return tool; },
+    get mode() { return mode; },
+    get frontWall() { return frontWall; },
   };
 })();
