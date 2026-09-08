@@ -559,13 +559,13 @@ App.UI = (function () {
       <div class="field"><label for="pDim">Dimmer — ${it.dim}%</label>
         <input id="pDim" type="range" min="10" max="100" step="5" value="${it.dim}"></div>
       <div class="row">
-        <div class="field"><label for="pBeam">Abertura do facho</label>
-          <select id="pBeam">
-            ${[24, 38, 60, 90, 120, 160].map((b) =>
-              `<option value="${b}" ${it.beam === b ? 'selected' : ''}>${b}° ${b <= 38 ? '(spot fechado)' : b <= 60 ? '(dirigido)' : '(difuso)'}</option>`).join('')}
-          </select></div>
+        ${fieldNum('pBeam', 'Abertura do facho (°)', Math.round(it.beam))}
         ${fieldNum('pAltL', 'Altura de instalação (m)', G.num(it.base))}
       </div>
+      <p class="muted small">Até 40° é spot dirigido, 60° médio, 90° ou mais difuso — a
+      embalagem traz esse número. Nesta altura, o facho de ${Math.round(it.beam)}° faz uma
+      poça de ${G.num(2 * Math.max(0.25, it.base - 0.75) * Math.tan(G.d2r(it.beam / 2)))} m
+      de diâmetro no plano de trabalho.</p>
       <div class="row">
         <div class="field"><label for="pK">Temperatura</label>
           <select id="pK">
@@ -673,6 +673,7 @@ App.UI = (function () {
       setVal('pName', it.name || '');
       setVal('pW', Math.round(it.watts));
       setVal('pLm', Math.round(it.lumens));
+      setVal('pBeam', Math.round(it.beam));
       setVal('pAltL', G.num(it.base));
       setVal('pX', G.num(it.x)); setVal('pY', G.num(it.y));
     } else if (it.type === 'line') {
@@ -749,8 +750,7 @@ App.UI = (function () {
         E.draw();
       });
       dim.addEventListener('change', () => S.update(() => { it.dim = +dim.value; }));
-      const beam = document.getElementById('pBeam');
-      beam.addEventListener('change', () => { S.update(() => { it.beam = +beam.value; }); E.draw(); });
+      onNum('pBeam', (v) => { it.beam = G.clamp(Math.round(v), 5, 170); });
       const kk = document.getElementById('pK');
       kk.addEventListener('change', () => S.update(() => { it.k = +kk.value; }));
     } else if (it.type === 'line') {
