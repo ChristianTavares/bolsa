@@ -67,7 +67,7 @@ App.Editor = (function () {
         handles = [];
         App.elev.render(ctx, {
           area: area(), wall: frontWall, view: viewF,
-          width: cssW, height: cssH, selectedId,
+          width: cssW, height: cssH, selectedId, mapaLuz,
         });
         return;
       }

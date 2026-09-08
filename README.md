@@ -53,6 +53,12 @@ e sem servidor.
   **complementar** (spot, downlight, fita, arandela, abajur). O painel soma os lúmens
   instalados, compara com o alvo (área × lux), mostra os lux resultantes e diz quanto falta
   — inclusive um aviso quando a luz principal sozinha não segura o ambiente.
+- **Luz que rebate e luz nas paredes**: o cálculo soma a parcela refletida por paredes,
+  teto e piso (aproximação da esfera integradora, `E = Φ·ρ / S·(1-ρ)`), escolhida pelo
+  acabamento — paredes claras, médias, escuras ou "só luz direta". É a diferença entre o
+  papel e a parede: no mesmo quarto, a média sai de 110 para 148 lux e o canto mais escuro
+  de 21 para 59. O painel mostra também a **iluminância vertical de cada parede**, e a vista
+  frontal pinta a parede com a luz que chega nela — dá para ver o banho de parede do spot.
 - **Mapa de onde a luz bate**: a planta é pintada com a iluminância calculada no plano de
   0,75 m, luminária por luminária (`E = I · cos³θ / h²`, com o ângulo sólido do facho), em
   escala falsecolor relativa ao lux do ambiente. O painel mostra a média, o ponto mais

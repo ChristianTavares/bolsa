@@ -30,6 +30,7 @@ App.Store = (function () {
     a.pd = +a.pd > 0 ? +a.pd : 2.60;          // pé-direito
     a.tipo = a.tipo || 'Sala de estar';
     a.lux = +a.lux > 0 ? +a.lux : 150;        // lux alvo do ambiente
+    a.refl = ['claras', 'medias', 'escuras', 'nenhuma'].indexOf(a.refl) >= 0 ? a.refl : 'claras';
     a.items = Array.isArray(a.items) ? a.items : [];
     a.items.forEach((i) => {
       i.id = i.id || uid();

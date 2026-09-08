@@ -180,7 +180,8 @@ App.UI = (function () {
         toast('Área atualizada');
       } else {
         const na = {
-          id: S.uid(), name, w, h, wall, pd, tipo, lux, color: $('#aColor').value, items: [],
+          id: S.uid(), name, w, h, wall, pd, tipo, lux, refl: 'claras',
+          color: $('#aColor').value, items: [],
         };
         S.update((p) => { p.areas.push(na); p.activeId = na.id; });
         E.select(null);
@@ -225,11 +226,22 @@ App.UI = (function () {
   }
 
   /* ---------- iluminação ---------- */
+  /* Iluminância vertical média de cada parede, em lux. */
+  function paredes(a) {
+    const luzes = a.items.filter((i) => i.type === 'light');
+    if (!luzes.length) return '—';
+    return ['top', 'right', 'bottom', 'left']
+      .map((w) => Math.round(App.lightmap.parede(a, w, luzes).media))
+      .join(' · ') + ' lux';
+  }
+
   function renderLuz() {
     const a = S.activeArea();
     if (!a) return;
     const bt = $('#btnMapa');
     if (bt) bt.textContent = E.mapaLuz ? 'Ocultar mapa de luz' : 'Mostrar mapa de luz';
+    const rs = $('#reflSel');
+    if (rs && document.activeElement !== rs) rs.value = a.refl;
     const sel = $('#luxSel');
     if (!sel.options.length) {
       sel.innerHTML = App.presets.ambientes
@@ -253,8 +265,8 @@ App.UI = (function () {
         <div class="luz-linha"><span>Instalado</span><b>${lm(L.total)}</b></div>
         <div class="luz-bar ${ok ? 'ok' : ''}"><i style="width:${pct}%"></i></div>
         <p class="luz-msg ${ok ? 'ok' : 'falta'}">${ok
-          ? `Dá ${Math.round(L.lux)} lux — o ambiente está resolvido.`
-          : `Está em ${Math.round(L.lux)} lux. Faltam ${lm(falta)} ≈ ${spots} spot${spots > 1 ? 's' : ''} de 600 lm.`}</p>
+          ? `Dá ${Math.round(mapa.media)} lux médios no plano — o ambiente está resolvido.`
+          : `Está em ${Math.round(mapa.media)} lux médios. Faltam ${lm(falta)} ≈ ${spots} spot${spots > 1 ? 's' : ''} de 600 lm.`}</p>
         <hr>
         <div class="luz-linha"><span>Principal (${nP})</span><b>${lm(L.principal)}</b></div>
         <div class="luz-linha"><span>Complementar (${nS})</span><b>${lm(L.spot)}</b></div>
@@ -263,10 +275,15 @@ App.UI = (function () {
         <div class="luz-linha"><span>Média no plano de 0,75 m</span><b>${Math.round(mapa.media)} lux</b></div>
         <div class="luz-linha"><span>Ponto mais escuro</span><b>${Math.round(mapa.min)} lux</b></div>
         <div class="luz-linha"><span>Uniformidade</span><b>${G.num(mapa.u0)}</b></div>
-        <p class="luz-msg ${mapa.u0 >= 0.4 ? 'ok' : 'falta'}">${mapa.u0 >= 0.4
+        ${mapa.amb > 0 ? `<div class="luz-linha"><span>Vem da reflexão</span><b>${Math.round(mapa.amb)} lux</b></div>` : ''}
+        <div class="luz-linha"><span>Luz nas paredes</span><b>${paredes(a)}</b></div>
+        <p class="luz-msg ${mapa.u0 >= 0.3 ? 'ok' : 'falta'}">${mapa.u0 >= 0.3
           ? 'Distribuição equilibrada — sem buraco de sombra.'
           : 'Luz concentrada: sobra num ponto e falta em outro. Espalhe as luminárias ou abra o facho.'}</p>
-        <p class="muted small" style="margin:6px 0 0">Valores de luz direta, sem contar a reflexão das paredes.</p>` : ''}
+        <p class="muted small" style="margin:6px 0 0">${a.refl === 'nenhuma'
+          ? 'Só luz direta — a reflexão das paredes não está sendo contada.'
+          : 'Inclui a luz que rebate nas paredes, teto e piso. Ordem das paredes: superior · direita · inferior · esquerda.'}
+        A vista frontal pinta a parede com a luz que chega nela, sem descontar móveis na frente.</p>` : ''}
         ${L.principal < L.alvo * 0.6 && L.total > 0
           ? '<p class="luz-msg falta">A luz principal sozinha está abaixo de 60% do alvo — com os spots desligados o ambiente fica escuro.</p>'
           : ''}
@@ -1075,6 +1092,11 @@ App.UI = (function () {
     });
 
     $('#btnMapa').addEventListener('click', () => { E.setMapaLuz(!E.mapaLuz); render(); });
+
+    $('#reflSel').addEventListener('change', () => {
+      S.update(() => { S.activeArea().refl = $('#reflSel').value; });
+      E.draw();
+    });
 
     $('#btnSugerir').addEventListener('click', sugerir);
     $('#sugResultado').addEventListener('click', (ev) => {

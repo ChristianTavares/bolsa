@@ -108,6 +108,18 @@ App.elev = (function () {
     ctx.fillStyle = '#eef0f6';
     ctx.fillRect(X(0), Y(PD), L * v.scale, PD * v.scale);
 
+    // luz que bate nesta parede
+    const luzes = area.items.filter((i) => i.type === 'light');
+    if (luzes.length && o.mapaLuz !== false) {
+      const m = App.lightmap.parede(area, wall, luzes);
+      const img = App.lightmap.imagem(m.grid, m.cols, m.rows, Math.max(30, area.lux));
+      ctx.save();
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, X(0), Y(PD), L * v.scale, PD * v.scale);
+      ctx.restore();
+    }
+
     // malha de altura a cada 0,5 m
     ctx.lineWidth = 1;
     for (let z = 0.5; z < PD; z += 0.5) {
@@ -247,6 +259,10 @@ App.elev = (function () {
     ctx.font = '600 13px -apple-system,Segoe UI,Roboto,sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
     ctx.fillText('Parede ' + NOMES[wall] + ' · ' + area.name, X(L / 2), Y(PD) - 14);
+
+    if (luzes.length && o.mapaLuz !== false && !o.exportMode) {
+      App.lightmap.legenda(ctx, area, W, H, 'luz que chega nesta parede');
+    }
   }
 
   return { render, run, sPoint, sRange, moveBy, pecas, vaos, alcas, folgas, NOMES, ORDEM };
