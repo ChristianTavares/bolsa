@@ -122,6 +122,8 @@ App.presets = (function () {
     { kind: 'principal', nome: 'Plafon LED 36 W', lumens: 3200, watts: 36, beam: 120, k: 4000 },
     { kind: 'principal', nome: 'Pendente LED 12 W', lumens: 1100, watts: 12, beam: 90, k: 3000, altura: 1.90 },
     { kind: 'principal', nome: 'Lustre 5 × E27', lumens: 3000, watts: 45, beam: 120, k: 2700, altura: 2.20 },
+    { kind: 'principal', nome: 'Ventilador 2 lâmpadas', lumens: 1600, watts: 18, beam: 120, k: 3000, altura: 2.30, pas: 0.65 },
+    { kind: 'principal', nome: 'Ventilador 3 lâmpadas', lumens: 2400, watts: 27, beam: 120, k: 3000, altura: 2.30, pas: 0.65 },
     { kind: 'spot', nome: 'Spot 7 W · 34° 2700K IRC90', lumens: 440, watts: 7, beam: 34, k: 2700 },
     { kind: 'spot', nome: 'Spot LED 7 W (IRC80)', lumens: 600, watts: 7, beam: 38, k: 3000 },
     { kind: 'spot', nome: 'Spot fechado 7 W', lumens: 600, watts: 7, beam: 24, k: 3000 },

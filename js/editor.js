@@ -14,6 +14,7 @@ App.Editor = (function () {
   let mode = 'plan';                          // 'plan' | 'front' | 'mob'
   let frontWall = 'top';
   let mapaLuz = true;                         // mostrar onde a luz bate
+  let previaSpots = null;                     // sugestão ainda não aplicada
   let mobView = 'frente';                     // 'frente' | '3d'
   let viewM = { scale: 100, ox: 0, oy: 0 };   // móvel de frente
   let view3 = { scale: 100, cx: 0, cy: 0, yaw: -0.6, pitch: 0.32 };
@@ -72,7 +73,7 @@ App.Editor = (function () {
       }
       handles = App.render(ctx, {
         area: area(), view, width: cssW, height: cssH,
-        selectedId, draft, mapaLuz,
+        selectedId, draft, mapaLuz, previa: previaSpots,
       });
     });
   }
@@ -314,6 +315,7 @@ App.Editor = (function () {
       beam: p.beam || 120,
       k: p.k || 4000,
       base: p.altura > 0 ? p.altura : a.pd,
+      pas: p.pas > 0 ? p.pas : 0,
       x: G.snap(G.clamp(c.x, 0.15, a.w - 0.15), SNAP),
       y: G.snap(G.clamp(c.y, 0.15, a.h - 0.15), SNAP),
     };
@@ -854,6 +856,12 @@ App.Editor = (function () {
     onChange();
   }
 
+  function setPreviaSpots(pts) {
+    previaSpots = pts && pts.length ? pts : null;
+    if (previaSpots && mode !== 'plan') setMode('plan');
+    draw();
+  }
+
   function setMapaLuz(v) {
     mapaLuz = !!v;
     draw();
@@ -911,7 +919,7 @@ App.Editor = (function () {
 
   return {
     init, draw, fit, resize, setTool, select, getSelected, addFurniture, addOpening, addLight,
-    keepInside, toggleOpen, cycleDoor, setMode, setFrontWall, girarParede, setMapaLuz,
+    keepInside, toggleOpen, cycleDoor, setMode, setFrontWall, girarParede, setMapaLuz, setPreviaSpots,
     setMovelView, selecionarModulo,
     removeSelected, duplicateSelected, exportPNG, zoomAt,
     zoomIn: () => zoomAt(1.25, cssW / 2, cssH / 2),

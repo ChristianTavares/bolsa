@@ -77,6 +77,12 @@
       </div>
       <button class="btn block" id="btnMapa">Ocultar mapa de luz</button>
       <div id="luzResumo"></div>
+      <div class="field" style="margin-top:14px">
+        <label for="sugModelo">Distribuir spots deste modelo</label>
+        <select id="sugModelo"></select>
+      </div>
+      <button class="btn btn-primary block" id="btnSugerir">Sugerir posição dos spots</button>
+      <div id="sugResultado"></div>
       <p class="muted small" style="margin:14px 0 6px"><b>Luz principal</b> — ilumina o ambiente todo</p>
       <div class="catalog" id="luzCatPrincipal"></div>
       <p class="muted small" style="margin:14px 0 6px"><b>Complementar</b> — spots, downlights, fita, arandela</p>
@@ -256,6 +262,7 @@
 <script src="js/presets.js"></script>
 <script src="js/store.js"></script>
 <script src="js/lightmap.js"></script>
+<script src="js/sugestao.js"></script>
 <script src="js/marcenaria.js"></script>
 <script src="js/download.js"></script>
 <script src="js/exportar.js"></script>

@@ -57,6 +57,13 @@ e sem servidor.
   0,75 m, luminária por luminária (`E = I · cos³θ / h²`, com o ângulo sólido do facho), em
   escala falsecolor relativa ao lux do ambiente. O painel mostra a média, o ponto mais
   escuro e a uniformidade — é onde se vê o buraco de sombra entre dois spots.
+- **Sugestão de posição dos spots**: escolha o modelo de spot e o site monta várias
+  disposições (grades, anel deixando o centro livre, banho de parede), **simula cada uma**
+  no mesmo motor do mapa e ordena pelo resultado — atender o lux do ambiente, cobrir o piso,
+  gastar menos luminárias. Ele respeita o que já está no teto (o ventilador entra na conta e
+  vira zona proibida, para nenhum spot ficar sob as pás), evita spot em cima da cama e diz
+  quando os spots são só destaque porque a luz principal já resolve o ambiente. A prévia
+  aparece numerada na planta antes de aplicar.
 - **Luminária editável**: potência em watts (os lúmens acompanham pela eficiência atual),
   lúmens, dimmer, abertura do facho (24° a 160°), altura de instalação (pendente mais baixo
   ilumina menos área) e temperatura de cor.
@@ -138,6 +145,7 @@ js/store.js         estado do projeto, localStorage, desfazer/refazer
 js/renderer.js      desenho da planta no canvas (paredes, cotas, móveis, portas, luz)
 js/elevation.js     desenho da vista frontal (projeção dos móveis numa parede)
 js/lightmap.js      cálculo e pintura da iluminância no plano de trabalho
+js/sugestao.js      disposições candidatas de spots, simuladas e ordenadas
 js/marcenaria.js    móvel sob medida: modelo, vista cotada, 3D e plano de corte
 js/exportar.js      prancha das áreas, projeto do móvel e planilha CSV
 js/download.js      salvar arquivos (capability do Artifact ou link do navegador)

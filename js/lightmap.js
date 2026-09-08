@@ -56,16 +56,13 @@ App.lightmap = (function () {
 
   let cache = { sig: null, dados: null };
 
-  function calc(area) {
-    const sig = assinatura(area);
-    if (cache.sig === sig) return cache.dados;
-
-    const luzes = area.items.filter((i) => i.type === 'light');
-    const cols = G.clamp(Math.ceil(area.w / CELULA), 2, MAXC);
-    const rows = G.clamp(Math.ceil(area.h / CELULA), 2, MAXC);
+  /* Iluminância de um conjunto qualquer de luminárias, sem tocar no estado. */
+  function simular(area, luzes, passo) {
+    const cel = passo || CELULA;
+    const cols = G.clamp(Math.ceil(area.w / cel), 2, MAXC);
+    const rows = G.clamp(Math.ceil(area.h / cel), 2, MAXC);
     const grid = new Float32Array(cols * rows);
     let soma = 0, min = Infinity, max = 0;
-
     for (let j = 0; j < rows; j++) {
       const py = ((j + 0.5) / rows) * area.h;
       for (let i = 0; i < cols; i++) {
@@ -81,6 +78,17 @@ App.lightmap = (function () {
     const n = cols * rows;
     const media = n ? soma / n : 0;
     if (!isFinite(min)) min = 0;
+    return { grid, cols, rows, media, min, max, u0: media > 0 ? min / media : 0 };
+  }
+
+  function calc(area) {
+    const sig = assinatura(area);
+    if (cache.sig === sig) return cache.dados;
+
+    const luzes = area.items.filter((i) => i.type === 'light');
+    const r = simular(area, luzes);
+    const { grid, cols, rows, media, min, max } = r;
+    const n = cols * rows;
 
     // imagem do mapa, pintada uma vez por assinatura
     const alvo = Math.max(30, area.lux);
@@ -100,8 +108,7 @@ App.lightmap = (function () {
 
     cache = {
       sig,
-      dados: { grid, cols, rows, media, min, max, img, luzes: luzes.length,
-               u0: media > 0 ? min / media : 0 },
+      dados: { grid, cols, rows, media, min, max, img, luzes: luzes.length, u0: r.u0 },
     };
     return cache.dados;
   }
@@ -148,5 +155,5 @@ App.lightmap = (function () {
     ctx.fillText(Math.round(alvo * 1.6) + '', x + larg, y + alt + 4);
   }
 
-  return { calc, pintar, legenda, PLANO, fluxo };
+  return { calc, simular, contribui, pintar, legenda, PLANO, fluxo };
 })();

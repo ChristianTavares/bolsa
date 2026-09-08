@@ -297,6 +297,83 @@ App.UI = (function () {
       : '<li class="muted small" style="padding:10px 2px">Nenhuma luminária ainda. Escolha uma acima — ela entra no teto, no centro da tela.</li>';
   }
 
+  /* ---------- sugestão de spots ---------- */
+  let sugestoes = [], sugIdx = 0;
+
+  const modeloAtual = () => App.presets.luzes[+($('#sugModelo') || {}).value || 0] || { beam: 38 };
+
+  function renderSugestao() {
+    const sel = $('#sugModelo');
+    if (sel && !sel.options.length) {
+      sel.innerHTML = App.presets.luzes
+        .map((l, i) => l.kind === 'spot'
+          ? `<option value="${i}">${l.nome} — ${l.lumens} lm, ${l.beam}°</option>` : '')
+        .join('');
+    }
+    const box = $('#sugResultado');
+    if (!box) return;
+    if (!sugestoes.length) { box.innerHTML = ''; return; }
+    const o = sugestoes[sugIdx];
+    const a = S.activeArea();
+    const vent = App.sugestao.obstaculos(a).length;
+    box.innerHTML = `
+      <div class="luz-card" style="margin-top:10px">
+        <div class="luz-linha"><span><b>${esc(o.nome)}</b></span><b>${o.n} spot${o.n > 1 ? 's' : ''}</b></div>
+        <div class="luz-linha"><span>Média no plano</span><b>${Math.round(o.media)} lux</b></div>
+        <div class="luz-linha"><span>Ponto mais escuro</span><b>${Math.round(o.min)} lux</b></div>
+        <div class="luz-linha"><span>Piso acima de ${Math.round(a.lux / 2)} lux</span><b>${Math.round(o.cobertura * 100)}%</b></div>
+        <div class="luz-linha"><span>Uniformidade</span><b>${G.num(o.u0)}</b></div>
+        <div class="luz-linha"><span>Consumo dos spots</span><b>${o.watts} W</b></div>
+        <p class="luz-msg ${o.atende ? 'ok' : 'falta'}">${o.atende
+          ? 'Fecha o alvo de ' + a.lux + ' lux e cobre o cômodo.'
+          : o.media >= a.lux
+            ? 'A média passa de ' + a.lux + ' lux, mas só ' + Math.round(o.cobertura * 100)
+              + '% do piso recebe luz: sobra claridade embaixo dos spots e falta no resto.'
+            : 'Ainda abaixo dos ' + a.lux + ' lux mesmo com o que já está instalado.'}</p>
+        ${o.cobertura < 0.6 ? `<p class="muted small">Facho de ${modeloAtual().beam}° faz poça de luz.
+          Para iluminação geral, conte com a luminária principal e use os spots como
+          complemento, ou escolha um modelo de facho mais aberto (60° ou mais).</p>` : ''}
+        ${vent ? '<p class="muted small">Nenhum spot cai sob as pás do ventilador nem colado nele.</p>' : ''}
+        ${o.base && o.base.basta ? `<p class="muted small">O que já está no teto sozinho dá
+          ${Math.round(o.base.media)} lux — acima do alvo. Esses spots entram como destaque
+          (guarda-roupa, leitura, nicho), não por necessidade.</p>` : ''}
+        ${o.emCama ? '<p class="muted small">Atenção: ' + o.emCama + ' spot(s) caem sobre a cama — luz no rosto de quem está deitado.</p>' : ''}
+        <div class="prop-actions" style="margin-top:10px">
+          <button class="btn btn-primary" data-sug="aplicar">Aplicar</button>
+          <button class="btn" data-sug="outra">Ver outra (${sugIdx + 1}/${sugestoes.length})</button>
+          <button class="btn" data-sug="cancelar">Cancelar</button>
+        </div>
+      </div>`;
+    E.setPreviaSpots(o.pts);
+  }
+
+  function sugerir() {
+    const a = S.activeArea();
+    const i = +$('#sugModelo').value || 0;
+    const modelo = App.presets.luzes[i];
+    if (!modelo) return;
+    sugestoes = App.sugestao.calcular(a, modelo, { recuo: 0.60, manterSpots: false });
+    sugIdx = 0;
+    if (!sugestoes.length) { toast('Não consegui montar uma grade nesse cômodo'); return; }
+    renderSugestao();
+    hint('Prévia na planta — os círculos numerados são os spots sugeridos');
+  }
+
+  function aplicarSugestao() {
+    const o = sugestoes[sugIdx];
+    if (!o) return;
+    const a = S.activeArea();
+    S.update(() => {
+      a.items = a.items.filter((i) => !(i.type === 'light' && i.kind === 'spot'));
+      o.spots.forEach((sp) => a.items.push(JSON.parse(JSON.stringify(sp))));
+    });
+    sugestoes = []; sugIdx = 0;
+    E.setPreviaSpots(null);
+    E.select(null);
+    render();
+    toast(o.n + ' spots posicionados — arraste qualquer um para ajustar');
+  }
+
   /* ---------- marcenaria ---------- */
   function renderModelos() {
     const box = $('#modelos');
@@ -875,6 +952,7 @@ App.UI = (function () {
       renderAreas();
       renderItems();
       renderLuz();
+      renderSugestao();
       renderMovel();
       renderModulos();
       renderCorte();
@@ -997,6 +1075,16 @@ App.UI = (function () {
     });
 
     $('#btnMapa').addEventListener('click', () => { E.setMapaLuz(!E.mapaLuz); render(); });
+
+    $('#btnSugerir').addEventListener('click', sugerir);
+    $('#sugResultado').addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-sug]');
+      if (!b) return;
+      const act = b.dataset.sug;
+      if (act === 'aplicar') aplicarSugestao();
+      if (act === 'outra') { sugIdx = (sugIdx + 1) % sugestoes.length; renderSugestao(); }
+      if (act === 'cancelar') { sugestoes = []; E.setPreviaSpots(null); renderSugestao(); }
+    });
 
     $('#luxSel').addEventListener('change', () => {
       const amb = App.presets.ambientes.find((x) => x.nome === $('#luxSel').value);

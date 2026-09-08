@@ -434,6 +434,28 @@ App.render = (function () {
     // luminárias por último: são o que se procura no plano de luz
     luzes.forEach((i) => drawLight(ctx, i, v, X, Y, i.id === sel));
 
+    // prévia da sugestão, antes de aplicar
+    if (o.previa && o.previa.length) {
+      ctx.save();
+      ctx.setLineDash([5, 4]);
+      o.previa.forEach((p, i) => {
+        ctx.beginPath();
+        ctx.arc(X(p.x), Y(p.y), 11, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,215,110,.55)';
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#a9761a';
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#7a5405';
+        ctx.font = '600 10px -apple-system,Segoe UI,Roboto,sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(String(i + 1), X(p.x), Y(p.y) + .5);
+        ctx.setLineDash([5, 4]);
+      });
+      ctx.restore();
+    }
+
     // linha sendo desenhada
     if (o.draft) {
       drawLine(ctx, Object.assign({ type: 'line' }, o.draft), v, X, Y, true);

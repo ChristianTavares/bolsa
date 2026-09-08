@@ -49,6 +49,7 @@ App.Store = (function () {
         i.beam = +i.beam > 0 ? Math.min(170, +i.beam) : 120;
         i.k = +i.k > 0 ? +i.k : 4000;
         i.base = +i.base > 0 ? +i.base : a.pd;   // altura de instalação
+        i.pas = +i.pas > 0 ? +i.pas : 0;         // raio das pás, quando é ventilador
         i.x = +i.x || 0; i.y = +i.y || 0;
       }
       if (i.type === 'furniture') {
