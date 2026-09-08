@@ -28,6 +28,41 @@ App.marcenaria = (function () {
     };
   }
 
+  /* Modelos prontos: entram já configurados e depois é só ajustar a medida. */
+  const MODELOS = [
+    {
+      nome: 'Estante com armário', w: 1.00, d: 0.47, h: 2.30, rodape: 0.10,
+      desc: '1,00 × 0,47 × 2,30 m · armário de 2 portas embaixo e nichos abertos em cima',
+      modulos: [{ tipo: 'prateleiras', qtd: 3, portas: 0, armario: 0.70, portasArmario: 2 }],
+    },
+    {
+      nome: 'Guarda-roupa 3 portas', w: 1.50, d: 0.60, h: 2.30, rodape: 0.10,
+      desc: '1,50 × 0,60 × 2,30 m · cabideiro, prateleiras e gavetas',
+      modulos: [
+        { tipo: 'cabide', qtd: 1, portas: 1, armario: 0, portasArmario: 2 },
+        { tipo: 'prateleiras', qtd: 4, portas: 1, armario: 0, portasArmario: 2 },
+        { tipo: 'gavetas', qtd: 4, portas: 0, armario: 0, portasArmario: 2 },
+      ],
+    },
+    {
+      nome: 'Balcão de TV', w: 1.80, d: 0.40, h: 0.60, rodape: 0.05,
+      desc: '1,80 × 0,40 × 0,60 m · gavetas no meio e portas nas laterais',
+      modulos: [
+        { tipo: 'nicho', qtd: 0, portas: 1, armario: 0, portasArmario: 2 },
+        { tipo: 'gavetas', qtd: 2, portas: 0, armario: 0, portasArmario: 2 },
+        { tipo: 'nicho', qtd: 0, portas: 1, armario: 0, portasArmario: 2 },
+      ],
+    },
+  ];
+
+  function doModelo(mod, id, uid) {
+    const m = novoMovel(id);
+    Object.assign(m, { nome: mod.nome, w: mod.w, d: mod.d, h: mod.h, rodape: mod.rodape });
+    m.modulos = mod.modulos.map((x, i) => Object.assign({ id: uid ? uid() : id + i, larg: 0.5 }, x));
+    redistribuir(m);
+    return m;
+  }
+
   /* Soma dos vãos livres: largura total menos as laterais e as divisórias. */
   const vaoTotal = (m) => m.w - 2 * m.esp - Math.max(0, m.modulos.length - 1) * m.esp;
   const alturaInterna = (m) => m.h - m.rodape - 2 * m.esp;
@@ -53,6 +88,15 @@ App.marcenaria = (function () {
     const dif = total - m.modulos.reduce((t, o) => t + o.larg, 0);
     const ult = m.modulos[m.modulos.length - 1];
     ult.larg = Math.round((ult.larg + dif) * 1000) / 1000;
+  }
+
+  /* Divisão do módulo entre o armário fechado da base e a parte de cima. */
+  function secoes(m, mo) {
+    const hInt = alturaInterna(m);
+    const arm = G.clamp(+mo.armario || 0, 0, Math.max(0, hInt - 0.20));
+    const y0 = m.rodape + m.esp + (arm > 0 ? arm + m.esp : 0);
+    const hA = hInt - (arm > 0 ? arm + m.esp : 0);
+    return { arm, y0, hA };
   }
 
   /* x da borda esquerda do vão de cada módulo. */
@@ -84,30 +128,44 @@ App.marcenaria = (function () {
       const x0 = offs[i];
       if (i < m.modulos.length - 1) put(x0 + mo.larg, R, 0, e, H - R, D, corpo, 'divisória');
 
+      const a = secoes(m, mo);
+      // armário fechado na base
+      if (a.arm > 0) {
+        put(x0, yBase + a.arm, 0.01, mo.larg, e, D - 0.01, corpo, 'tampo do armário');
+        const np = Math.max(1, mo.portasArmario || 2);
+        const lp = np === 2 ? (mo.larg - 0.006) / 2 : mo.larg - 0.006;
+        for (let k = 0; k < np; k++) {
+          put(x0 + 0.003 + k * (lp + 0.003), yBase, D - 0.018, lp, a.arm, 0.018, corpo, 'porta do armário');
+          const px = np === 2 && k === 0 ? x0 + lp - 0.09 : x0 + 0.003 + k * (lp + 0.003) + 0.02;
+          put(px, yBase + a.arm - 0.16, D, 0.014, 0.12, 0.02, '#8d93a3', 'puxador');
+        }
+      }
+
+      const y0 = a.y0, hA = a.hA;
       if (mo.tipo === 'prateleiras' || mo.tipo === 'nicho') {
         const n = mo.tipo === 'nicho' ? 0 : Math.max(0, mo.qtd);
         for (let k = 1; k <= n; k++) {
-          put(x0, yBase + (hInt * k) / (n + 1), 0.01, mo.larg, e, D - 0.02, corpo, 'prateleira');
+          put(x0, y0 + (hA * k) / (n + 1), 0.01, mo.larg, e, D - 0.02, corpo, 'prateleira');
         }
       } else if (mo.tipo === 'cabide') {
-        const yC = yBase + hInt * 0.72;
+        const yC = y0 + hA * 0.72;
         put(x0, yC, 0.01, mo.larg, e, D - 0.02, corpo, 'prateleira');
         put(x0 + 0.02, yC - 0.06, D / 2 - 0.015, mo.larg - 0.04, 0.03, 0.03, '#9aa1b0', 'cabide');
       } else if (mo.tipo === 'gavetas') {
         const n = Math.max(1, mo.qtd);
-        const hg = hInt / n;
+        const hg = hA / n;
         for (let k = 0; k < n; k++) {
-          put(x0 + 0.003, yBase + k * hg + 0.003, D - 0.018, mo.larg - 0.006, hg - 0.006, 0.018, corpo, 'gaveta');
-          put(x0 + mo.larg / 2 - 0.06, yBase + k * hg + hg - 0.055, D, 0.12, 0.012, 0.02, '#8d93a3', 'puxador');
+          put(x0 + 0.003, y0 + k * hg + 0.003, D - 0.018, mo.larg - 0.006, hg - 0.006, 0.018, corpo, 'gaveta');
+          put(x0 + mo.larg / 2 - 0.06, y0 + k * hg + hg - 0.055, D, 0.12, 0.012, 0.02, '#8d93a3', 'puxador');
         }
       }
 
       if (mo.portas > 0) {
         const lp = mo.portas === 2 ? (mo.larg - 0.006) / 2 : mo.larg - 0.006;
         for (let k = 0; k < mo.portas; k++) {
-          put(x0 + 0.003 + k * (lp + 0.003), yBase, D - 0.018, lp, hInt, 0.018, corpo, 'porta');
+          put(x0 + 0.003 + k * (lp + 0.003), y0, D - 0.018, lp, hA, 0.018, corpo, 'porta');
           const px = mo.portas === 2 && k === 0 ? x0 + lp - 0.09 : x0 + 0.003 + k * (lp + 0.003) + 0.02;
-          put(px, yBase + hInt / 2 - 0.06, D, 0.014, 0.12, 0.02, '#8d93a3', 'puxador');
+          put(px, y0 + hA / 2 - 0.06, D, 0.014, 0.12, 0.02, '#8d93a3', 'puxador');
         }
       }
     });
@@ -134,13 +192,20 @@ App.marcenaria = (function () {
     add('Fundo', m.w - 2 * m.esp, hInt, 1, 'MDF 6 mm');
 
     m.modulos.forEach((mo) => {
+      const sec = secoes(m, mo);
+      if (sec.arm > 0) {
+        add('Tampo do armário', mo.larg, m.d - 0.01, 1);
+        const np = Math.max(1, mo.portasArmario || 2);
+        add('Porta do armário', np === 2 ? (mo.larg - 0.006) / 2 : mo.larg - 0.006, sec.arm, np);
+        add('Dobradiça', 0.035, 0.035, np * 2, 'Ferragem');
+      }
       if (mo.tipo === 'prateleiras') add('Prateleira', mo.larg, m.d - 0.02, Math.max(0, mo.qtd));
       if (mo.tipo === 'cabide') {
         add('Prateleira', mo.larg, m.d - 0.02, 1);
         add('Barra de cabide', mo.larg - 0.04, 0.03, 1, 'Alumínio Ø 30 mm');
       }
       if (mo.tipo === 'gavetas') {
-        const n = Math.max(1, mo.qtd), hg = hInt / n;
+        const n = Math.max(1, mo.qtd), hg = sec.hA / n;
         add('Frente de gaveta', mo.larg - 0.006, hg - 0.006, n);
         add('Lateral de gaveta', m.d - 0.06, hg - 0.08, 2 * n, 'MDF 15 mm');
         add('Fundo de gaveta', mo.larg - 0.08, m.d - 0.06, n, 'MDF 6 mm');
@@ -148,7 +213,7 @@ App.marcenaria = (function () {
       }
       if (mo.portas > 0) {
         const lp = mo.portas === 2 ? (mo.larg - 0.006) / 2 : mo.larg - 0.006;
-        add('Porta', lp, hInt, mo.portas);
+        add('Porta', lp, sec.hA, mo.portas);
         add('Dobradiça', 0.035, 0.035, mo.portas * 3, 'Ferragem');
       }
     });
@@ -195,6 +260,8 @@ App.marcenaria = (function () {
     m.modulos.forEach((mo, i) => {
       const x0 = offs[i];
       const ativo = sel === mo.id;
+      const sec = secoes(m, mo);
+      const yA = sec.y0, hA = sec.hA;
       // vão do módulo
       ctx.fillStyle = '#fbfaf7';
       ctx.fillRect(X(x0), Y(yBase + hInt), mo.larg * v.scale, hInt * v.scale);
@@ -202,15 +269,42 @@ App.marcenaria = (function () {
       ctx.lineWidth = ativo ? 2.5 : 1;
       ctx.strokeRect(X(x0), Y(yBase + hInt), mo.larg * v.scale, hInt * v.scale);
 
+      // armário fechado da base
+      if (sec.arm > 0) {
+        const np = Math.max(1, mo.portasArmario || 2);
+        const lp = mo.larg / np;
+        for (let k = 0; k < np; k++) {
+          const px = x0 + k * lp;
+          ctx.fillStyle = 'rgba(217,185,138,.65)';
+          ctx.fillRect(X(px) + 1, Y(yBase + sec.arm) + 1, lp * v.scale - 2, sec.arm * v.scale - 2);
+          ctx.strokeStyle = 'rgba(40,46,66,.55)'; ctx.lineWidth = 1.2;
+          ctx.strokeRect(X(px) + 1, Y(yBase + sec.arm) + 1, lp * v.scale - 2, sec.arm * v.scale - 2);
+          ctx.setLineDash([5, 4]);
+          ctx.strokeStyle = 'rgba(40,46,66,.35)';
+          ctx.beginPath();
+          const dobra = (np === 2 && k === 1) ? px + lp : px;
+          ctx.moveTo(X(dobra), Y(yBase));
+          ctx.lineTo(X(np === 2 && k === 1 ? px : px + lp), Y(yBase + sec.arm / 2));
+          ctx.lineTo(X(dobra), Y(yBase + sec.arm));
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = '#8d93a3';
+          const pux = (np === 2 && k === 1) ? px + 0.02 : px + lp - 0.03;
+          ctx.fillRect(X(pux), Y(yBase + sec.arm - 0.10), 4, 0.10 * v.scale);
+        }
+        ctx.fillStyle = 'rgba(40,46,66,.6)';
+        ctx.fillRect(X(x0), Y(yBase + sec.arm) - Math.max(2, m.esp * v.scale), mo.larg * v.scale, Math.max(2, m.esp * v.scale));
+      }
+
       if (mo.tipo === 'prateleiras') {
         const n = Math.max(0, mo.qtd);
         ctx.fillStyle = 'rgba(40,46,66,.55)';
         for (let k = 1; k <= n; k++) {
-          const y = yBase + (hInt * k) / (n + 1);
+          const y = yA + (hA * k) / (n + 1);
           ctx.fillRect(X(x0), Y(y) - Math.max(1.5, m.esp * v.scale), mo.larg * v.scale, Math.max(2, m.esp * v.scale));
         }
       } else if (mo.tipo === 'cabide') {
-        const y = yBase + hInt * 0.72;
+        const y = yA + hA * 0.72;
         ctx.fillStyle = 'rgba(40,46,66,.55)';
         ctx.fillRect(X(x0), Y(y), mo.larg * v.scale, Math.max(2, m.esp * v.scale));
         ctx.strokeStyle = '#8d93a3'; ctx.lineWidth = 3;
@@ -218,9 +312,9 @@ App.marcenaria = (function () {
         ctx.moveTo(X(x0 + 0.02), Y(y - 0.06)); ctx.lineTo(X(x0 + mo.larg - 0.02), Y(y - 0.06));
         ctx.stroke();
       } else if (mo.tipo === 'gavetas') {
-        const n = Math.max(1, mo.qtd), hg = hInt / n;
+        const n = Math.max(1, mo.qtd), hg = hA / n;
         for (let k = 0; k < n; k++) {
-          const y0 = yBase + k * hg;
+          const y0 = yA + k * hg;
           ctx.fillStyle = '#f3ece1';
           ctx.fillRect(X(x0) + 2, Y(y0 + hg) + 2, mo.larg * v.scale - 4, hg * v.scale - 4);
           ctx.strokeStyle = 'rgba(40,46,66,.45)'; ctx.lineWidth = 1;
@@ -236,22 +330,22 @@ App.marcenaria = (function () {
         for (let k = 0; k < mo.portas; k++) {
           const px = x0 + k * lp;
           ctx.fillStyle = 'rgba(217,185,138,.55)';
-          ctx.fillRect(X(px) + 1, Y(yBase + hInt) + 1, lp * v.scale - 2, hInt * v.scale - 2);
+          ctx.fillRect(X(px) + 1, Y(yA + hA) + 1, lp * v.scale - 2, hA * v.scale - 2);
           ctx.strokeStyle = 'rgba(40,46,66,.55)'; ctx.lineWidth = 1.2;
-          ctx.strokeRect(X(px) + 1, Y(yBase + hInt) + 1, lp * v.scale - 2, hInt * v.scale - 2);
+          ctx.strokeRect(X(px) + 1, Y(yA + hA) + 1, lp * v.scale - 2, hA * v.scale - 2);
           // sentido de abertura
           ctx.setLineDash([5, 4]);
           ctx.strokeStyle = 'rgba(40,46,66,.35)';
           ctx.beginPath();
           const dobra = (mo.portas === 2 && k === 1) ? px + lp : px;
-          ctx.moveTo(X(dobra), Y(yBase));
-          ctx.lineTo(X(mo.portas === 2 && k === 1 ? px : px + lp), Y(yBase + hInt / 2));
-          ctx.lineTo(X(dobra), Y(yBase + hInt));
+          ctx.moveTo(X(dobra), Y(yA));
+          ctx.lineTo(X(mo.portas === 2 && k === 1 ? px : px + lp), Y(yA + hA / 2));
+          ctx.lineTo(X(dobra), Y(yA + hA));
           ctx.stroke();
           ctx.setLineDash([]);
           ctx.fillStyle = '#8d93a3';
           const pux = (mo.portas === 2 && k === 1) ? px + 0.02 : px + lp - 0.03;
-          ctx.fillRect(X(pux), Y(yBase + hInt / 2 + 0.06), 4, 0.12 * v.scale);
+          ctx.fillRect(X(pux), Y(yA + hA / 2 + 0.06), 4, 0.12 * v.scale);
         }
       }
 
@@ -260,7 +354,8 @@ App.marcenaria = (function () {
       ctx.font = '600 11px -apple-system,Segoe UI,Roboto,sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'top';
       if (mo.larg * v.scale > 60) {
-        ctx.fillText(TIPOS[mo.tipo] + (mo.portas ? ' + porta' : ''), X(x0 + mo.larg / 2), Y(m.h) - 20, mo.larg * v.scale);
+        ctx.fillText(TIPOS[mo.tipo] + (mo.portas ? ' + porta' : '') + (sec.arm > 0 ? ' + armário' : ''),
+          X(x0 + mo.larg / 2), Y(m.h) - 20, mo.larg * v.scale);
       }
       // cota do módulo
       App.render.dimension(ctx, X(x0), Y(0) + 30, X(x0 + mo.larg), Y(0) + 30, G.num(mo.larg) + ' m', C.dim);
@@ -361,7 +456,7 @@ App.marcenaria = (function () {
   }
 
   return {
-    TIPOS, novoMovel, vaoTotal, alturaInterna, redistribuir, ajustarLargura,
+    TIPOS, MODELOS, novoMovel, doModelo, vaoTotal, alturaInterna, secoes, redistribuir, ajustarLargura,
     offsets, caixas, planoDeCorte, areaChapa, desenhaFrente, desenha3D, mm,
   };
 })();

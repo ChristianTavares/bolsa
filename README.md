@@ -62,7 +62,10 @@ e sem servidor.
   ilumina menos área) e temperatura de cor.
 - **Marcenaria**: seção separada para desenhar um móvel sob medida de ponta a ponta —
   largura, profundidade, altura, rodapé e espessura da chapa, dividido em módulos de
-  prateleiras, gavetas, cabideiro ou nicho, com portas de uma ou duas folhas. Tem vista de
+  prateleiras, gavetas, cabideiro ou nicho, com portas de uma ou duas folhas e, quando
+  quiser, um **armário fechado na base** com o resto do módulo aberto em cima (o estilo
+  estante + balcão). Há modelos prontos para começar: estante com armário, guarda-roupa de
+  3 portas e balcão de TV. Tem vista de
   frente cotada e **3D** que gira com o dedo, e gera o **plano de corte** em milímetros. O
   PNG de exportação junta os três — é o que dá para mandar pro marceneiro orçar.
 - **Cotas e escala**: largura e profundidade cotadas fora do desenho, barra de escala e

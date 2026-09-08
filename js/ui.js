@@ -298,8 +298,21 @@ App.UI = (function () {
   }
 
   /* ---------- marcenaria ---------- */
+  function renderModelos() {
+    const box = $('#modelos');
+    if (!box || box.dataset.pronto) return;
+    box.dataset.pronto = '1';
+    box.innerHTML = App.marcenaria.MODELOS.map((mo, i) => `
+      <button class="cat-item" data-modelo="${i}">
+        <i style="background:#d9b98a"></i>
+        <b>${esc(mo.nome)}</b>
+        <span>${esc(mo.desc)}</span>
+      </button>`).join('');
+  }
+
   function renderMovel() {
     if (secao !== 'mob') return;
+    renderModelos();
     const p = S.get(), m = S.activeMovel();
     $('#movelList').innerHTML = p.moveis.map((x) => `
       <li class="area-item ${x.id === p.movelId ? 'is-active' : ''}" data-id="${x.id}">
@@ -396,29 +409,51 @@ App.UI = (function () {
               ? fieldNum('md-q-' + i, mo.tipo === 'gavetas' ? 'Gavetas' : 'Prateleiras', mo.qtd)
               : '<div class="field"></div>'}
           </div>
-          <div class="field"><label for="md-p-${i}">Portas</label>
+          <div class="field"><label for="md-p-${i}">Portas na parte de cima</label>
             <select id="md-p-${i}" data-i="${i}" data-campo="portas">
               <option value="0" ${mo.portas === 0 ? 'selected' : ''}>Sem porta (aberto)</option>
               <option value="1" ${mo.portas === 1 ? 'selected' : ''}>1 folha</option>
               <option value="2" ${mo.portas === 2 ? 'selected' : ''}>2 folhas</option>
             </select></div>
+          <div class="row">
+            ${fieldNum('md-a-' + i, 'Armário embaixo (m)', G.num(mo.armario || 0))}
+            <div class="field"><label for="md-ap-${i}">Portas do armário</label>
+              <select id="md-ap-${i}" data-i="${i}" data-campo="portasArmario" ${mo.armario > 0 ? '' : 'disabled'}>
+                <option value="1" ${mo.portasArmario === 1 ? 'selected' : ''}>1 folha</option>
+                <option value="2" ${mo.portasArmario !== 1 ? 'selected' : ''}>2 folhas</option>
+              </select></div>
+          </div>
+          <p class="muted small">0 = módulo aberto do chão ao topo. Com armário, o resto do
+          módulo vira nicho ${mo.tipo === 'prateleiras' ? 'com prateleiras' : ''} em cima.</p>
         </div>`).join('')}`;
 
     m.modulos.forEach((mo, i) => {
+      const ID = { tipo: 'md-t-', portas: 'md-p-', portasArmario: 'md-ap-' };
       const sel = (campo) => {
-        const el = document.getElementById('md-' + (campo === 'tipo' ? 't' : 'p') + '-' + i);
+        const el = document.getElementById(ID[campo] + i);
+        if (!el) return;
         el.addEventListener('change', () => {
           S.update(() => {
             if (campo === 'tipo') {
               mo.tipo = el.value;
               if (mo.tipo === 'gavetas' && !mo.qtd) mo.qtd = 4;
               if (mo.tipo === 'prateleiras' && !mo.qtd) mo.qtd = 4;
-            } else mo.portas = +el.value;
+            } else mo[campo] = +el.value;
           });
           E.draw(); render();
         });
       };
-      sel('tipo'); sel('portas');
+      sel('tipo'); sel('portas'); sel('portasArmario');
+      const arm = document.getElementById('md-a-' + i);
+      if (arm) arm.addEventListener('change', () => {
+        const v = G.parseNum(arm.value);
+        if (!Number.isFinite(v)) { render(); return; }
+        S.update(() => {
+          mo.armario = G.clamp(v, 0, Math.max(0, App.marcenaria.alturaInterna(m) - 0.20));
+          if (mo.armario > 0 && !mo.portasArmario) mo.portasArmario = 2;
+        });
+        E.draw(); render();
+      });
       const larg = document.getElementById('md-l-' + i);
       larg.addEventListener('change', () => {
         const v = G.parseNum(larg.value);
@@ -993,6 +1028,17 @@ App.UI = (function () {
       if (!b) return;
       E.setMovelView(b.dataset.mob);
       if (b.dataset.mob === '3d') hint('Arraste para girar o móvel');
+    });
+
+    $('#modelos').addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-modelo]');
+      if (!b) return;
+      const mod = App.marcenaria.MODELOS[+b.dataset.modelo];
+      const novo = App.marcenaria.doModelo(mod, S.uid(), S.uid);
+      S.update((p) => { p.moveis.push(novo); p.movelId = novo.id; });
+      E.selecionarModulo(null);
+      E.fit();
+      toast(mod.nome + ' criado');
     });
 
     $('#btnNovoMovel').addEventListener('click', () => {

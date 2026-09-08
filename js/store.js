@@ -88,6 +88,8 @@ App.Store = (function () {
         tipo: M.TIPOS[mo.tipo] ? mo.tipo : 'prateleiras',
         qtd: Math.max(0, Math.min(12, Math.round(+mo.qtd || 0))),
         portas: Math.max(0, Math.min(2, Math.round(+mo.portas || 0))),
+        armario: Math.max(0, Math.min(2.5, +mo.armario || 0)),
+        portasArmario: Math.max(1, Math.min(2, Math.round(+mo.portasArmario || 2))),
       }));
     }
     return out;
