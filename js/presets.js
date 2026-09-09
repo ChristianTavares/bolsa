@@ -103,6 +103,7 @@ App.presets = (function () {
     ['Geral', 'Prateleira de parede', 0.80, 0.25, 0.04, 1.40],
     ['Geral', 'TV 43"', 0.97, 0.07, 0.57, 1.10],
     ['Geral', 'TV 65"', 1.46, 0.08, 0.84, 0.95],
+    ['Geral', 'Pilar / coluna', 0.30, 0.30, 2.60],
     ['Geral', 'Tapete', 2.00, 1.40, 0.01],
     ['Geral', 'Caixa / volume', 0.50, 0.50, 0.50],
     ['Geral', 'Círculo / volume', 0.60, 0.60, 0.50, 0, 'circle'],
@@ -137,6 +138,33 @@ App.presets = (function () {
     { kind: 'spot', nome: 'Luminária de piso 15 W', lumens: 1300, watts: 15, beam: 90, k: 3000, altura: 1.60 },
   ];
 
+  /* Áreas prontas: começam já com as medidas e o que é fixo no cômodo. */
+  const areas = [
+    {
+      nome: 'Sala de estar — Monsenhor Marques',
+      desc: '5,90 × 2,68 m · 15,8 m² · porta de entrada e o pilar do canto',
+      w: 5.90, h: 2.68, pd: 2.60, wall: 0.15, tipo: 'Sala de estar', lux: 150,
+      itens: [
+        { t: 'porta', wall: 'bottom', pos: 4.20, width: 0.84 },
+        { t: 'movel', nome: 'Pilar', w: 0.75, h: 0.67, altura: 2.60, x: 5.52, y: 0.34, cor: '#dcdce2' },
+      ],
+    },
+    {
+      // o nicho da foto abre para a sala: a área vai até 2,68 e a linha marca onde ele acaba
+      nome: 'Canto da mesa de jantar',
+      desc: '1,70 m de largura · nicho de 1,36 m marcado por linha, com mesa e cadeiras',
+      w: 1.70, h: 2.68, pd: 2.60, wall: 0.15, tipo: 'Sala de jantar', lux: 200,
+      itens: [
+        { t: 'linha', x1: 0, y1: 1.36, x2: 1.70, y2: 1.36 },
+        { t: 'movel', nome: 'Mesa jantar 4 lug.', w: 1.20, h: 0.80, altura: 0.78, x: 0.85, y: 0.95, cor: '#cfe6d8' },
+        { t: 'movel', nome: 'Cadeira', w: 0.45, h: 0.45, altura: 0.90, x: 0.60, y: 0.28, cor: '#cfe6d8' },
+        { t: 'movel', nome: 'Cadeira', w: 0.45, h: 0.45, altura: 0.90, x: 1.10, y: 0.28, cor: '#cfe6d8' },
+        { t: 'movel', nome: 'Cadeira', w: 0.45, h: 0.45, altura: 0.90, x: 0.60, y: 1.62, cor: '#cfe6d8' },
+        { t: 'movel', nome: 'Cadeira', w: 0.45, h: 0.45, altura: 0.90, x: 1.10, y: 1.62, cor: '#cfe6d8' },
+      ],
+    },
+  ];
+
   /* Lux recomendado por ambiente (referência ABNT NBR ISO/CIE 8995-1). */
   const ambientes = [
     { nome: 'Sala de estar', lux: 150 },
@@ -149,5 +177,34 @@ App.presets = (function () {
     { nome: 'Corredor / hall', lux: 100 },
   ];
 
-  return { itens, categorias, cores, luzes, ambientes };
+  /* Monta a área de verdade a partir do modelo. */
+  function criarArea(modelo, uid) {
+    const a = {
+      id: uid(), name: modelo.nome.split(' — ')[0], w: modelo.w, h: modelo.h,
+      wall: modelo.wall, pd: modelo.pd, tipo: modelo.tipo, lux: modelo.lux,
+      refl: 'claras', color: '#4bb3a5', items: [],
+    };
+    (modelo.itens || []).forEach((i) => {
+      if (i.t === 'movel') {
+        a.items.push({
+          id: uid(), type: 'furniture', shape: 'rect', name: i.nome,
+          w: i.w, h: i.h, altura: i.altura, base: i.base || 0,
+          x: i.x, y: i.y, rot: i.rot || 0, color: i.cor || '#e2e5ec',
+        });
+      } else if (i.t === 'linha') {
+        a.items.push({ id: uid(), type: 'line', x1: i.x1, y1: i.y1, x2: i.x2, y2: i.y2 });
+      } else if (i.t === 'porta' || i.t === 'janela') {
+        a.items.push({
+          id: uid(), type: 'opening', kind: i.t, wall: i.wall,
+          pos: i.pos, width: i.width,
+          altura: i.altura || (i.t === 'porta' ? 2.10 : 1.20),
+          base: i.base != null ? i.base : (i.t === 'porta' ? 0 : 1.10),
+          flip: !!i.flip, out: !!i.out,
+        });
+      }
+    });
+    return a;
+  }
+
+  return { itens, categorias, cores, luzes, ambientes, areas, criarArea };
 })();

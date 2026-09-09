@@ -11,6 +11,9 @@ e sem servidor.
 
 ## O que dá para fazer
 
+- **Áreas prontas**: a aba *Áreas* começa com modelos que já nascem com as medidas e o que
+  é fixo no cômodo (porta, pilar, linha marcando um nicho) — dá para partir deles em vez de
+  digitar tudo.
 - **Áreas**: criar quantos cômodos quiser informando largura × profundidade em metros
   (medidas internas) e a espessura da parede. O site mostra a área em m² de cada ambiente
   e o total do apartamento.

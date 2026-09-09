@@ -75,7 +75,20 @@ App.UI = (function () {
   }
 
   /* ---------- áreas ---------- */
+  function renderModelosArea() {
+    const box = $('#areaModelos');
+    if (!box || box.dataset.pronto) return;
+    box.dataset.pronto = '1';
+    box.innerHTML = App.presets.areas.map((m, i) => `
+      <button class="cat-item" data-area="${i}">
+        <i style="background:#4bb3a5"></i>
+        <b>${esc(m.nome)}</b>
+        <span>${esc(m.desc)}</span>
+      </button>`).join('');
+  }
+
   function renderAreas() {
+    renderModelosArea();
     const p = S.get();
     const sig = JSON.stringify(p.areas.map((a) => [a.id, a.name, a.w, a.h, a.items.length]))
       + '|' + p.activeId;
@@ -1065,6 +1078,18 @@ App.UI = (function () {
       }
       setTab('props');
       if (isMobile()) openPanel(true);
+    });
+
+    $('#areaModelos').addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-area]');
+      if (!b) return;
+      const modelo = App.presets.areas[+b.dataset.area];
+      const nova = App.presets.criarArea(modelo, S.uid);
+      S.update((p) => { p.areas.push(nova); p.activeId = nova.id; });
+      E.select(null);
+      E.fit();
+      if (isMobile()) openPanel(false);
+      toast(nova.name + ' criada — ' + G.num(nova.w) + ' × ' + G.num(nova.h) + ' m');
     });
 
     $('#btnNewArea').addEventListener('click', () => areaDialog(null));
