@@ -824,11 +824,16 @@ App.presets = (function () {
         // as duas medidas do canto
         { t: 'linha', x1: 4.20, y1: 2.60, x2: 5.90, y2: 2.60 },
         { t: 'linha', x1: 5.82, y1: 1.32, x2: 5.82, y2: 2.68 },
-        // mesa redonda no canto, como já aparece na planta
-        { t: 'movel', nome: 'Mesa redonda 4 lug.', w: 1.00, h: 1.00, altura: 0.78,
+        // mesa redonda de 6 lugares no canto, com pendente em cima
+        { t: 'movel', nome: 'Mesa redonda 6 lug.', w: 1.20, h: 1.20, altura: 0.78,
           x: 5.05, y: 2.00, forma: 'circle', cor: '#cfe6d8' },
-        { t: 'movel', nome: 'Cadeira', w: 0.45, h: 0.45, altura: 0.90, x: 5.05, y: 1.25, cor: '#cfe6d8' },
-        { t: 'movel', nome: 'Cadeira', w: 0.45, h: 0.45, altura: 0.90, x: 4.35, y: 2.00, cor: '#cfe6d8' },
+        // cabem 3 cadeiras: nas laterais sobram só 0,25 m entre a mesa e a
+        // parede, e cadeira precisa de 0,45 m de largura
+        { t: 'movel', nome: 'Cadeira', w: 0.45, h: 0.45, altura: 0.90, x: 5.05, y: 1.07, cor: '#cfe6d8' },
+        { t: 'movel', nome: 'Cadeira', w: 0.45, h: 0.45, altura: 0.90, x: 4.55, y: 1.30, rot: 45, cor: '#cfe6d8' },
+        { t: 'movel', nome: 'Cadeira', w: 0.45, h: 0.45, altura: 0.90, x: 5.55, y: 1.30, rot: -45, cor: '#cfe6d8' },
+        { t: 'luz', kind: 'principal', nome: 'Pendente LED 12 W', lumens: 1100, watts: 12,
+          beam: 90, k: 3000, altura: 1.90, x: 5.05, y: 2.00 },
         // sala do outro lado
         { t: 'movel', nome: 'Sofá 3 lugares', w: 2.00, h: 0.90, altura: 0.85,
           x: 1.40, y: 0.45, cor: '#cfe6d8' },
@@ -863,6 +868,12 @@ App.presets = (function () {
           id: uid(), type: 'furniture', shape: i.forma === 'circle' ? 'circle' : 'rect', name: i.nome,
           w: i.w, h: i.h, altura: i.altura, base: i.base || 0,
           x: i.x, y: i.y, rot: i.rot || 0, color: i.cor || '#e2e5ec',
+        });
+      } else if (i.t === 'luz') {
+        a.items.push({
+          id: uid(), type: 'light', kind: i.kind || 'spot', name: i.nome,
+          lumens: i.lumens, watts: i.watts, dim: 100, beam: i.beam, k: i.k,
+          base: i.altura, pas: 0, x: i.x, y: i.y,
         });
       } else if (i.t === 'linha') {
         a.items.push({ id: uid(), type: 'line', x1: i.x1, y1: i.y1, x2: i.x2, y2: i.y2 });
