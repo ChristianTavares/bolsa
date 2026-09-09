@@ -141,40 +141,18 @@ App.presets = (function () {
   /* Áreas prontas: começam já com as medidas e o que é fixo no cômodo. */
   const areas = [
     {
-      // Sala inteira num cômodo só, 5,90 × 2,68 interno.
-      // Canto direito inferior (o da foto): a coluna de 0,67 × 0,75 fecha
-      // o canto pela esquerda e deixa 1,70 m livres até a parede da direita;
-      // 1,36 m é a profundidade medida a partir da parede de baixo.
-      // Nesse mesmo canto ficam a entrada do corredor e, no alto da parede
-      // da direita, a passagem para a cozinha.
+      // Sala igual à planta: retângulo interno de 5,90 × 2,68 e as três
+      // aberturas. Vazia — os móveis quem põe é você.
       nome: 'Sala de estar — Monsenhor Marques',
-      desc: '5,90 × 2,68 m · canto da mesa 1,70 × 1,36 com a entrada do corredor e a cozinha',
+      desc: '5,90 × 2,68 m · 15,8 m² · vazia, com a entrada, o corredor e a cozinha',
       w: 5.90, h: 2.68, pd: 2.60, wall: 0.15, tipo: 'Sala de estar', lux: 150,
       itens: [
+        // entrada, no lado do hall (esquerda)
         { t: 'porta', wall: 'left', pos: 0.90, width: 0.80 },
+        // corredor: abertura de 0,76 na parede de baixo, a 4,29 do canto esquerdo
         { t: 'porta', wall: 'bottom', pos: 4.29, width: 0.76, altura: 2.10 },
+        // cozinha: passagem no alto da parede da direita
         { t: 'porta', wall: 'right', pos: 0.10, width: 0.90, altura: 2.10 },
-        // coluna que fecha o canto pela esquerda
-        { t: 'movel', nome: 'Coluna', w: 0.67, h: 0.75, altura: 2.60,
-          x: 3.865, y: 2.305, cor: '#dcdce2' },
-        // as duas medidas do canto
-        { t: 'linha', x1: 4.20, y1: 2.60, x2: 5.90, y2: 2.60 },
-        { t: 'linha', x1: 5.82, y1: 1.32, x2: 5.82, y2: 2.68 },
-        // mesa redonda de 6 lugares no canto, com pendente em cima
-        { t: 'movel', nome: 'Mesa redonda 6 lug.', w: 1.20, h: 1.20, altura: 0.78,
-          x: 5.05, y: 2.00, forma: 'circle', cor: '#cfe6d8' },
-        // cabem 3 cadeiras: nas laterais sobram só 0,25 m entre a mesa e a
-        // parede, e cadeira precisa de 0,45 m de largura
-        { t: 'movel', nome: 'Cadeira', w: 0.45, h: 0.45, altura: 0.90, x: 5.05, y: 1.07, cor: '#cfe6d8' },
-        { t: 'movel', nome: 'Cadeira', w: 0.45, h: 0.45, altura: 0.90, x: 4.55, y: 1.30, rot: 45, cor: '#cfe6d8' },
-        { t: 'movel', nome: 'Cadeira', w: 0.45, h: 0.45, altura: 0.90, x: 5.55, y: 1.30, rot: -45, cor: '#cfe6d8' },
-        { t: 'luz', kind: 'principal', nome: 'Pendente LED 12 W', lumens: 1100, watts: 12,
-          beam: 90, k: 3000, altura: 1.90, x: 5.05, y: 2.00 },
-        // sala do outro lado
-        { t: 'movel', nome: 'Sofá 3 lugares', w: 2.00, h: 0.90, altura: 0.85,
-          x: 1.40, y: 0.45, cor: '#cfe6d8' },
-        { t: 'movel', nome: 'Rack de TV', w: 1.80, h: 0.40, altura: 0.50,
-          x: 1.40, y: 2.48, cor: '#cfe6d8' },
       ],
     },
   ];
