@@ -84,11 +84,15 @@ e sem servidor.
   3 portas e balcão de TV. Tem vista de
   frente cotada e **3D** que gira com o dedo, e gera o **plano de corte** em milímetros. O
   PNG de exportação junta os três — é o que dá para mandar pro marceneiro orçar.
-- **Papel de parede**: marque as paredes que vão receber papel e o site calcula a metragem
-  de cada uma (descontando portas e janelas) e **quantos rolos comprar**. A conta é a de
+- **Papel de parede**: marque as paredes — ou só o **trecho** de cada uma: de onde a onde
+  ao longo da parede e de que altura a que altura (meia parede, faixa, só o pedaço do
+  canto). O site calcula a metragem (descontando a parte de porta e janela que cai dentro
+  do trecho) e **quantos rolos comprar**. A conta é a de
   panos, não m² ÷ área do rolo: quantas tiras da altura do pé-direito cabem no rolo,
   considerando a margem de corte e o rapport do desenho — é por isso que sobra rolo mesmo
-  quando o m² fecha. As paredes escolhidas ficam marcadas na planta.
+  quando o m² fecha. Trechos de alturas diferentes não dividem rolo, então a conta é feita
+  por grupo de altura de pano. O trecho aparece marcado na planta e desenhado na parede
+  dentro da vista frontal.
 - **Cotas e escala**: largura e profundidade cotadas fora do desenho, barra de escala e
   malha de 0,5 m / 1 m no fundo.
 - **Salvar e exportar**: tudo fica no navegador (localStorage). Dá para exportar/importar o

@@ -17,48 +17,74 @@ App.papel = (function () {
 
   const comprimentoParede = (area, w) => (w === 'top' || w === 'bottom') ? area.w : area.h;
 
-  /* Área cheia, vãos e área líquida de uma parede. */
-  function parede(area, w) {
+  const inteira = (area, w) => ({ de: 0, ate: comprimentoParede(area, w), z0: 0, z1: area.pd });
+
+  /* Área, vãos e líquida do trecho de papel de uma parede.
+     O trecho é de..até ao longo da parede (medido do mesmo canto que as
+     portas) e z0..z1 de altura. */
+  function parede(area, w, t) {
     const L = comprimentoParede(area, w);
-    const bruta = L * area.pd;
+    t = t || inteira(area, w);
+    const larg = Math.max(0, t.ate - t.de);
+    const alt = Math.max(0, t.z1 - t.z0);
+    const bruta = larg * alt;
+    // só a parte de cada vão que cai dentro do trecho
     const vaos = area.items
       .filter((i) => i.type === 'opening' && i.wall === w)
-      .reduce((t, i) => t + i.width * i.altura, 0);
-    return { wall: w, nome: NOMES[w], L, bruta, vaos, liquida: Math.max(0, bruta - vaos) };
+      .reduce((soma, i) => {
+        const dx = Math.max(0, Math.min(t.ate, i.pos + i.width) - Math.max(t.de, i.pos));
+        const dz = Math.max(0, Math.min(t.z1, i.base + i.altura) - Math.max(t.z0, i.base));
+        return soma + dx * dz;
+      }, 0);
+    return {
+      wall: w, nome: NOMES[w], L, t, larg, alt,
+      bruta, vaos, liquida: Math.max(0, bruta - vaos),
+      parcial: larg < L - 0.005 || alt < area.pd - 0.005,
+    };
   }
 
   /* Altura de corte de cada pano, já com margem e rapport. */
-  function alturaPano(area, c) {
-    const base = area.pd + (+c.margem || 0);
+  function alturaPano(altura, c) {
+    const base = altura + (+c.margem || 0);
     if (!(c.rapport > 0)) return base;
     return Math.ceil(base / c.rapport) * c.rapport;
   }
 
   function calcular(area) {
     const c = conf(area);
-    const hp = alturaPano(area, c);
-    const porRolo = Math.floor((c.comprimento || 0) / hp);
     const itens = ORDEM.filter((w) => c.paredes[w]).map((w) => {
-      const p = parede(area, w);
-      const panos = Math.ceil(p.L / c.largura);
+      const p = parede(area, w, c.paredes[w]);
+      const hp = alturaPano(p.alt, c);
+      const porRolo = Math.floor((c.comprimento || 0) / hp);
+      const panos = Math.ceil(p.larg / c.largura);
       return Object.assign(p, {
-        panos,
+        hp, porRolo, panos,
         rolosSozinha: porRolo > 0 ? Math.ceil(panos / porRolo) : 0,
       });
     });
+    // trechos de alturas diferentes não dividem rolo: soma por altura de pano
+    const grupos = {};
+    itens.forEach((i) => {
+      const k = i.hp.toFixed(3);
+      grupos[k] = grupos[k] || { hp: i.hp, porRolo: i.porRolo, panos: 0 };
+      grupos[k].panos += i.panos;
+    });
+    const lista = Object.keys(grupos).map((k) => grupos[k]);
+    const rolos = lista.reduce((t, g) =>
+      t + (g.porRolo > 0 ? Math.ceil(g.panos / g.porRolo) : 0), 0);
+    const usado = lista.reduce((t, g) => t + g.panos * g.hp, 0);
     const panos = itens.reduce((t, i) => t + i.panos, 0);
-    const liquida = itens.reduce((t, i) => t + i.liquida, 0);
-    const bruta = itens.reduce((t, i) => t + i.bruta, 0);
-    const rolos = porRolo > 0 ? Math.ceil(panos / porRolo) : 0;
-    const rolosPorParede = itens.reduce((t, i) => t + i.rolosSozinha, 0);
-    const usado = panos * hp;
-    const comprado = rolos * c.comprimento;
     return {
-      c, itens, hp, porRolo, panos, liquida, bruta, rolos, rolosPorParede,
-      sobra: Math.max(0, comprado - usado),
+      c, itens, grupos: lista, panos,
+      liquida: itens.reduce((t, i) => t + i.liquida, 0),
+      bruta: itens.reduce((t, i) => t + i.bruta, 0),
+      rolos,
+      rolosPorParede: itens.reduce((t, i) => t + i.rolosSozinha, 0),
+      semAltura: lista.some((g) => g.porRolo < 1),
+      sobra: Math.max(0, rolos * c.comprimento - usado),
       m2Rolo: c.largura * c.comprimento,
     };
   }
 
-  return { calcular, parede, conf, padrao, NOMES, ORDEM, comprimentoParede };
+  return { calcular, parede, inteira, alturaPano, conf, padrao, NOMES, ORDEM, comprimentoParede };
 })();

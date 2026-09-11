@@ -341,39 +341,95 @@ App.UI = (function () {
     });
 
     const r = P.calcular(a);
-    $('#papelParedes').innerHTML = P.ORDEM.map((w) => {
-      const p = P.parede(a, w);
-      const on = c.paredes[w];
-      const panos = Math.ceil(p.L / c.largura);
-      return `
-        <button class="item-row ${on ? 'is-active' : ''}" data-parede="${w}" style="width:100%;text-align:left">
-          <span class="dot" style="background:${on ? '#4c5bd4' : '#dde1e9'}"></span>
-          <span class="nm">${p.nome} · ${G.num(p.L)} × ${G.num(a.pd)} m</span>
-          <span class="sz">${G.num(p.liquida)} m²${p.vaos > 0 ? ' (−' + G.num(p.vaos) + ')' : ''} · ${panos} panos</span>
-        </button>`;
-    }).join('');
+    const chave = P.ORDEM.map((w) => JSON.stringify(c.paredes[w])).join('|') + a.w + a.h + a.pd;
+    const box = $('#papelParedes');
+    if (box.dataset.chave !== chave) {
+      box.dataset.chave = chave;
+      box.innerHTML = P.ORDEM.map((w) => {
+        const t = c.paredes[w];
+        const p = P.parede(a, w, t || P.inteira(a, w));
+        const L = P.comprimentoParede(a, w);
+        const panos = Math.ceil(p.larg / c.largura);
+        return `
+        <div class="parede-bloco ${t ? 'is-active' : ''}">
+          <button class="item-row ${t ? 'is-active' : ''}" data-parede="${w}" style="width:100%;text-align:left;border:0;background:none">
+            <span class="dot" style="background:${t ? '#8a5cd6' : '#dde1e9'}"></span>
+            <span class="nm">${p.nome} · parede de ${G.num(L)} × ${G.num(a.pd)} m</span>
+            <span class="sz">${t ? G.num(p.liquida) + ' m²' + (p.vaos > 0 ? ' (−' + G.num(p.vaos) + ')' : '') + ' · ' + panos + ' panos' : 'sem papel'}</span>
+          </button>
+          ${t ? `
+          <div class="row" style="margin-top:6px">
+            ${fieldNum('pw-de-' + w, 'Do canto (m)', G.num(t.de))}
+            ${fieldNum('pw-ate-' + w, 'Até (m)', G.num(t.ate))}
+          </div>
+          <div class="row">
+            ${fieldNum('pw-z0-' + w, 'Do chão (m)', G.num(t.z0))}
+            ${fieldNum('pw-z1-' + w, 'Até a altura (m)', G.num(t.z1))}
+          </div>
+          <p class="muted small" style="margin:-4px 0 4px">Trecho de ${G.num(p.larg)} × ${G.num(p.alt)} m${
+            p.parcial ? '' : ' — parede inteira'}</p>` : ''}
+        </div>`;
+      }).join('');
+      wirePapelTrechos(a, c);
+    } else {
+      P.ORDEM.forEach((w) => {
+        const t = c.paredes[w];
+        if (!t) return;
+        setVal('pw-de-' + w, G.num(t.de)); setVal('pw-ate-' + w, G.num(t.ate));
+        setVal('pw-z0-' + w, G.num(t.z0)); setVal('pw-z1-' + w, G.num(t.z1));
+      });
+    }
 
     if (!r.itens.length) {
       $('#papelResumo').innerHTML = '<p class="muted small" style="margin-top:12px">Escolha ao menos uma parede para ver quantos rolos comprar.</p>';
       return;
     }
-    const semAltura = r.porRolo < 1;
+    const semAltura = r.semAltura;
     $('#papelResumo').innerHTML = `
       <div class="luz-card" style="margin-top:12px">
         <div class="luz-linha"><span>Paredes escolhidas</span><b>${r.itens.length}</b></div>
         <div class="luz-linha"><span>Área líquida</span><b>${G.num(r.liquida)} m²</b></div>
-        <div class="luz-linha"><span>Panos de ${G.num(r.hp)} m</span><b>${r.panos}</b></div>
-        <div class="luz-linha"><span>Panos por rolo</span><b>${r.porRolo}</b></div>
+        ${r.grupos.map((g) => `
+        <div class="luz-linha"><span>Panos de ${G.num(g.hp)} m</span><b>${g.panos}</b></div>
+        <div class="luz-linha"><span>Cabem por rolo</span><b>${g.porRolo}</b></div>`).join('')}
         <hr>
         <div class="luz-linha"><span><b>Rolos a comprar</b></span><b>${semAltura ? '—' : r.rolos}</b></div>
         <div class="luz-linha"><span>Com 1 de reserva</span><b>${semAltura ? '—' : r.rolos + 1}</b></div>
-        <div class="luz-bar ${semAltura ? '' : 'ok'}"><i style="width:${semAltura ? 0 : Math.min(100, Math.round((r.panos / Math.max(1, r.rolos * r.porRolo)) * 100))}%"></i></div>
+        <div class="luz-bar ${semAltura ? '' : 'ok'}"><i style="width:${semAltura ? 0
+          : Math.min(100, Math.round((r.panos / Math.max(1, r.grupos.reduce((t, g) => t + Math.ceil(g.panos / Math.max(1, g.porRolo)) * g.porRolo, 0))) * 100))}%"></i></div>
         <p class="luz-msg ${semAltura ? 'falta' : 'ok'}">${semAltura
-          ? `Um rolo de ${G.num(c.comprimento)} m não dá nem um pano de ${G.num(r.hp)} m. Confira o comprimento do rolo.`
+          ? `Um rolo de ${G.num(c.comprimento)} m não dá nem um pano inteiro. Confira o comprimento do rolo.`
           : `Sobra ${G.num(r.sobra)} m de papel (${G.num(r.sobra * c.largura)} m²).`}</p>
         ${r.rolosPorParede > r.rolos ? `<p class="muted small">Se o instalador não aproveitar sobra de uma parede na outra, vão ${r.rolosPorParede} rolos.</p>` : ''}
-        <p class="muted small">Cada rolo cobre ${G.num(r.m2Rolo)} m², mas o que conta é caber ${r.porRolo} pano${r.porRolo > 1 ? 's' : ''} de ${G.num(r.hp)} m. Vãos de porta e janela não foram descontados na conta de rolos — o pano é cortado inteiro e a sobra vira retalho.</p>
+        <p class="muted small">Cada rolo cobre ${G.num(r.m2Rolo)} m², mas o que conta é quantos panos inteiros cabem nele. Vãos de porta e janela não foram descontados na conta de rolos — o pano é cortado inteiro e a sobra vira retalho.</p>
       </div>`;
+  }
+
+  function wirePapelTrechos(a, c) {
+    App.papel.ORDEM.forEach((w) => {
+      if (!c.paredes[w]) return;
+      [['de'], ['ate'], ['z0'], ['z1']].forEach(([campo]) => {
+        const el = document.getElementById('pw-' + campo + '-' + w);
+        if (!el) return;
+        el.addEventListener('change', () => {
+          const v = G.parseNum(el.value);
+          if (!Number.isFinite(v)) { render(); return; }
+          S.update(() => {
+            const ar = S.activeArea();
+            const t = ar.papel.paredes[w];
+            const L = App.papel.comprimentoParede(ar, w);
+            t[campo] = v;
+            // mantém o trecho dentro da parede e com os limites na ordem certa
+            t.de = G.clamp(t.de, 0, L - 0.05);
+            t.ate = G.clamp(t.ate, t.de + 0.05, L);
+            t.z0 = G.clamp(t.z0, 0, ar.pd - 0.05);
+            t.z1 = G.clamp(t.z1, t.z0 + 0.05, ar.pd);
+          });
+          E.draw();
+          render();
+        });
+      });
+    });
   }
 
   /* ---------- sugestão de spots ---------- */
@@ -1180,7 +1236,7 @@ App.UI = (function () {
       S.update(() => {
         const a = S.activeArea();
         if (!a.papel) a.papel = App.papel.padrao();
-        a.papel.paredes[w] = !a.papel.paredes[w];
+        a.papel.paredes[w] = a.papel.paredes[w] ? null : App.papel.inteira(a, w);
       });
       E.draw();
     });

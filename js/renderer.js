@@ -433,17 +433,18 @@ App.render = (function () {
 
     // paredes marcadas para papel
     if (area.papel && area.papel.paredes) {
-      const faces = {
-        top: [[0, 0], [area.w, 0]], bottom: [[0, area.h], [area.w, area.h]],
-        left: [[0, 0], [0, area.h]], right: [[area.w, 0], [area.w, area.h]],
-      };
+      // só o trecho escolhido de cada parede
+      const pontos = (w, d) => (
+        w === 'top' ? [d, 0] : w === 'bottom' ? [d, area.h]
+          : w === 'left' ? [0, d] : [area.w, d]);
       ctx.save();
       ctx.lineWidth = 5;
       ctx.strokeStyle = '#8a5cd6';
       ctx.lineCap = 'round';
-      Object.keys(faces).forEach((w) => {
-        if (!area.papel.paredes[w]) return;
-        const [p1, p2] = faces[w];
+      ['top', 'right', 'bottom', 'left'].forEach((w) => {
+        const t = area.papel.paredes[w];
+        if (!t) return;
+        const p1 = pontos(w, t.de), p2 = pontos(w, t.ate);
         ctx.beginPath();
         ctx.moveTo(X(p1[0]), Y(p1[1]));
         ctx.lineTo(X(p2[0]), Y(p2[1]));

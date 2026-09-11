@@ -82,6 +82,13 @@ hr{border:0;border-top:1px solid var(--line);margin:6px 0}
 .wallnav{align-items:center;gap:2px}
 .wallnav span{font-size:13px;padding:0 4px;white-space:nowrap}
 .wallnav button{font-size:17px;line-height:1;padding:4px 10px}
+.parede-bloco{
+  border:1px solid var(--line);border-radius:var(--radius);padding:6px 10px;margin-bottom:8px;
+  background:var(--surface);
+}
+.parede-bloco.is-active{border-color:#8a5cd6;background:#f6f2fd}
+.parede-bloco .item-row{padding:6px 0}
+
 .mod-card{
   border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px 2px;margin-bottom:10px;
   background:var(--surface);

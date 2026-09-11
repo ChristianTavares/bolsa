@@ -32,16 +32,29 @@ App.Store = (function () {
     a.lux = +a.lux > 0 ? +a.lux : 150;        // lux alvo do ambiente
     a.refl = ['claras', 'medias', 'escuras', 'nenhuma'].indexOf(a.refl) >= 0 ? a.refl : 'claras';
     const pp = a.papel || {};
+    const sel = pp.paredes || {};
+    const lim = (v, min, max) => Math.min(max, Math.max(min, v));
+    /* Cada parede guarda o trecho de papel: de..até ao longo dela e z0..z1 de altura.
+       Valor antigo (true/false) vira a parede inteira. */
+    const trecho = (w) => {
+      const v = sel[w];
+      if (!v) return null;
+      const L = (w === 'top' || w === 'bottom') ? a.w : a.h;
+      if (v === true) return { de: 0, ate: L, z0: 0, z1: a.pd };
+      const de = lim(+v.de || 0, 0, L);
+      const ate = lim(+v.ate > 0 ? +v.ate : L, de + 0.05, L);
+      const z0 = lim(+v.z0 || 0, 0, a.pd);
+      const z1 = lim(+v.z1 > 0 ? +v.z1 : a.pd, z0 + 0.05, a.pd);
+      return { de, ate, z0, z1 };
+    };
     a.papel = {
       largura: +pp.largura > 0 ? +pp.largura : 0.53,
       comprimento: +pp.comprimento > 0 ? +pp.comprimento : 10,
       rapport: +pp.rapport >= 0 ? +pp.rapport : 0,
       margem: +pp.margem >= 0 ? +pp.margem : 0.10,
       paredes: {
-        top: !!(pp.paredes && pp.paredes.top),
-        right: !!(pp.paredes && pp.paredes.right),
-        bottom: !!(pp.paredes && pp.paredes.bottom),
-        left: !!(pp.paredes && pp.paredes.left),
+        top: trecho('top'), right: trecho('right'),
+        bottom: trecho('bottom'), left: trecho('left'),
       },
     };
     a.items = Array.isArray(a.items) ? a.items : [];

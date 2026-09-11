@@ -138,6 +138,30 @@ App.elev = (function () {
       }
     }
 
+    // trecho com papel de parede
+    const tp = area.papel && area.papel.paredes && area.papel.paredes[wall];
+    if (tp) {
+      const mundo = (d) => (
+        wall === 'top' ? { x: d, y: 0 } : wall === 'bottom' ? { x: d, y: area.h }
+          : wall === 'left' ? { x: 0, y: d } : { x: area.w, y: d });
+      const a1 = sPoint(area, wall, mundo(tp.de).x, mundo(tp.de).y).s;
+      const a2 = sPoint(area, wall, mundo(tp.ate).x, mundo(tp.ate).y).s;
+      const s1 = Math.min(a1, a2), s2 = Math.max(a1, a2);
+      ctx.save();
+      ctx.fillStyle = 'rgba(138,92,214,.16)';
+      ctx.fillRect(X(s1), Y(tp.z1), (s2 - s1) * v.scale, (tp.z1 - tp.z0) * v.scale);
+      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = '#8a5cd6';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(X(s1), Y(tp.z1), (s2 - s1) * v.scale, (tp.z1 - tp.z0) * v.scale);
+      ctx.restore();
+      ctx.fillStyle = '#6b3fb0';
+      ctx.font = '600 11px -apple-system,Segoe UI,Roboto,sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText('papel ' + G.num(s2 - s1) + ' × ' + G.num(tp.z1 - tp.z0) + ' m',
+        X((s1 + s2) / 2), Y(tp.z1) + 6);
+    }
+
     // vãos da parede
     vaos(area, wall).forEach((p) => {
       const x = X(p.s1), y = Y(p.z2);
