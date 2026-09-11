@@ -84,6 +84,11 @@ e sem servidor.
   3 portas e balcão de TV. Tem vista de
   frente cotada e **3D** que gira com o dedo, e gera o **plano de corte** em milímetros. O
   PNG de exportação junta os três — é o que dá para mandar pro marceneiro orçar.
+- **Papel de parede**: marque as paredes que vão receber papel e o site calcula a metragem
+  de cada uma (descontando portas e janelas) e **quantos rolos comprar**. A conta é a de
+  panos, não m² ÷ área do rolo: quantas tiras da altura do pé-direito cabem no rolo,
+  considerando a margem de corte e o rapport do desenho — é por isso que sobra rolo mesmo
+  quando o m² fecha. As paredes escolhidas ficam marcadas na planta.
 - **Cotas e escala**: largura e profundidade cotadas fora do desenho, barra de escala e
   malha de 0,5 m / 1 m no fundo.
 - **Salvar e exportar**: tudo fica no navegador (localStorage). Dá para exportar/importar o
@@ -156,6 +161,7 @@ js/elevation.js     desenho da vista frontal (projeção dos móveis numa parede
 js/lightmap.js      cálculo e pintura da iluminância no plano de trabalho
 js/sugestao.js      disposições candidatas de spots, simuladas e ordenadas
 js/marcenaria.js    móvel sob medida: modelo, vista cotada, 3D e plano de corte
+js/papel.js         metragem e número de rolos de papel de parede
 js/exportar.js      prancha das áreas, projeto do móvel e planilha CSV
 js/download.js      salvar arquivos (capability do Artifact ou link do navegador)
 js/editor.js        vista (zoom/pan), gestos de toque e mouse, edição dos itens

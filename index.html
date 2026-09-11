@@ -38,8 +38,9 @@
     <div class="sheet-grip" id="sheetGrip"></div>
     <nav class="tabs" role="tablist" id="tabsAmb">
       <button class="tab is-active" data-tab="areas" role="tab">Áreas</button>
-      <button class="tab" data-tab="add" role="tab">Adicionar</button>
+      <button class="tab" data-tab="add" role="tab">Móveis</button>
       <button class="tab" data-tab="luz" role="tab">Luz</button>
+      <button class="tab" data-tab="papel" role="tab">Papel</button>
       <button class="tab" data-tab="props" role="tab">Editar</button>
     </nav>
     <nav class="tabs" role="tablist" id="tabsMob" hidden>
@@ -99,6 +100,27 @@
       <p class="muted small" style="margin:14px 0 6px"><b>Complementar</b> — spots, downlights, fita, arandela</p>
       <div class="catalog" id="luzCatSpot"></div>
       <ul class="item-list" id="luzList"></ul>
+    </div>
+
+    <div class="pane" id="pane-papel">
+      <p class="muted small" style="margin:0 0 8px">Marque as paredes que vão receber papel.</p>
+      <div id="papelParedes"></div>
+      <hr>
+      <p class="muted small" style="margin:10px 0 6px"><b>O rolo que você vai comprar</b></p>
+      <div class="row">
+        <div class="field"><label for="ppLarg">Largura (m)</label>
+          <input id="ppLarg" inputmode="decimal" value="0,53"></div>
+        <div class="field"><label for="ppComp">Comprimento (m)</label>
+          <input id="ppComp" inputmode="decimal" value="10"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label for="ppRap">Rapport (m)</label>
+          <input id="ppRap" inputmode="decimal" value="0"></div>
+        <div class="field"><label for="ppMarg">Margem de corte (m)</label>
+          <input id="ppMarg" inputmode="decimal" value="0,10"></div>
+      </div>
+      <p class="muted small">Rapport é de quanto em quanto o desenho se repete na vertical — vem na etiqueta. Liso = 0.</p>
+      <div id="papelResumo"></div>
     </div>
 
     <div class="pane" id="pane-moveis">
@@ -275,6 +297,7 @@
 <script src="js/lightmap.js"></script>
 <script src="js/sugestao.js"></script>
 <script src="js/marcenaria.js"></script>
+<script src="js/papel.js"></script>
 <script src="js/download.js"></script>
 <script src="js/exportar.js"></script>
 <script src="js/renderer.js"></script>

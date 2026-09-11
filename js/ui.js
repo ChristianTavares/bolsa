@@ -50,7 +50,7 @@ App.UI = (function () {
   let secao = 'amb';   // 'amb' = ambientes | 'mob' = marcenaria
 
   const GRUPO = {
-    areas: 'amb', add: 'amb', luz: 'amb', props: 'amb',
+    areas: 'amb', add: 'amb', luz: 'amb', papel: 'amb', props: 'amb',
     moveis: 'mob', modulos: 'mob', corte: 'mob',
   };
 
@@ -192,10 +192,10 @@ App.UI = (function () {
         });
         toast('Área atualizada');
       } else {
-        const na = {
+        const na = S.normalizeArea({
           id: S.uid(), name, w, h, wall, pd, tipo, lux, refl: 'claras',
           color: $('#aColor').value, items: [],
-        };
+        });
         S.update((p) => { p.areas.push(na); p.activeId = na.id; });
         E.select(null);
         toast('Área criada');
@@ -325,6 +325,55 @@ App.UI = (function () {
           </span>
         </li>`).join('')
       : '<li class="muted small" style="padding:10px 2px">Nenhuma luminária ainda. Escolha uma acima — ela entra no teto, no centro da tela.</li>';
+  }
+
+  /* ---------- papel de parede ---------- */
+  function renderPapel() {
+    if (secao !== 'amb') return;
+    const a = S.activeArea();
+    if (!a) return;
+    const P = App.papel;
+    const c = P.conf(a);
+
+    ['ppLarg', 'ppComp', 'ppRap', 'ppMarg'].forEach((id, i) => {
+      const v = [c.largura, c.comprimento, c.rapport, c.margem][i];
+      setVal(id, G.num(v));
+    });
+
+    const r = P.calcular(a);
+    $('#papelParedes').innerHTML = P.ORDEM.map((w) => {
+      const p = P.parede(a, w);
+      const on = c.paredes[w];
+      const panos = Math.ceil(p.L / c.largura);
+      return `
+        <button class="item-row ${on ? 'is-active' : ''}" data-parede="${w}" style="width:100%;text-align:left">
+          <span class="dot" style="background:${on ? '#4c5bd4' : '#dde1e9'}"></span>
+          <span class="nm">${p.nome} · ${G.num(p.L)} × ${G.num(a.pd)} m</span>
+          <span class="sz">${G.num(p.liquida)} m²${p.vaos > 0 ? ' (−' + G.num(p.vaos) + ')' : ''} · ${panos} panos</span>
+        </button>`;
+    }).join('');
+
+    if (!r.itens.length) {
+      $('#papelResumo').innerHTML = '<p class="muted small" style="margin-top:12px">Escolha ao menos uma parede para ver quantos rolos comprar.</p>';
+      return;
+    }
+    const semAltura = r.porRolo < 1;
+    $('#papelResumo').innerHTML = `
+      <div class="luz-card" style="margin-top:12px">
+        <div class="luz-linha"><span>Paredes escolhidas</span><b>${r.itens.length}</b></div>
+        <div class="luz-linha"><span>Área líquida</span><b>${G.num(r.liquida)} m²</b></div>
+        <div class="luz-linha"><span>Panos de ${G.num(r.hp)} m</span><b>${r.panos}</b></div>
+        <div class="luz-linha"><span>Panos por rolo</span><b>${r.porRolo}</b></div>
+        <hr>
+        <div class="luz-linha"><span><b>Rolos a comprar</b></span><b>${semAltura ? '—' : r.rolos}</b></div>
+        <div class="luz-linha"><span>Com 1 de reserva</span><b>${semAltura ? '—' : r.rolos + 1}</b></div>
+        <div class="luz-bar ${semAltura ? '' : 'ok'}"><i style="width:${semAltura ? 0 : Math.min(100, Math.round((r.panos / Math.max(1, r.rolos * r.porRolo)) * 100))}%"></i></div>
+        <p class="luz-msg ${semAltura ? 'falta' : 'ok'}">${semAltura
+          ? `Um rolo de ${G.num(c.comprimento)} m não dá nem um pano de ${G.num(r.hp)} m. Confira o comprimento do rolo.`
+          : `Sobra ${G.num(r.sobra)} m de papel (${G.num(r.sobra * c.largura)} m²).`}</p>
+        ${r.rolosPorParede > r.rolos ? `<p class="muted small">Se o instalador não aproveitar sobra de uma parede na outra, vão ${r.rolosPorParede} rolos.</p>` : ''}
+        <p class="muted small">Cada rolo cobre ${G.num(r.m2Rolo)} m², mas o que conta é caber ${r.porRolo} pano${r.porRolo > 1 ? 's' : ''} de ${G.num(r.hp)} m. Vãos de porta e janela não foram descontados na conta de rolos — o pano é cortado inteiro e a sobra vira retalho.</p>
+      </div>`;
   }
 
   /* ---------- sugestão de spots ---------- */
@@ -983,6 +1032,7 @@ App.UI = (function () {
       renderItems();
       renderLuz();
       renderSugestao();
+      renderPapel();
       renderMovel();
       renderModulos();
       renderCorte();
@@ -1121,6 +1171,31 @@ App.UI = (function () {
     $('#reflSel').addEventListener('change', () => {
       S.update(() => { S.activeArea().refl = $('#reflSel').value; });
       E.draw();
+    });
+
+    $('#papelParedes').addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-parede]');
+      if (!b) return;
+      const w = b.dataset.parede;
+      S.update(() => {
+        const a = S.activeArea();
+        if (!a.papel) a.papel = App.papel.padrao();
+        a.papel.paredes[w] = !a.papel.paredes[w];
+      });
+      E.draw();
+    });
+
+    [['ppLarg', 'largura', 0.2, 1.4], ['ppComp', 'comprimento', 1, 100],
+     ['ppRap', 'rapport', 0, 2], ['ppMarg', 'margem', 0, 0.5]].forEach(([id, campo, min, max]) => {
+      $('#' + id).addEventListener('change', () => {
+        const v = G.parseNum($('#' + id).value);
+        if (!Number.isFinite(v)) { render(); return; }
+        S.update(() => {
+          const a = S.activeArea();
+          if (!a.papel) a.papel = App.papel.padrao();
+          a.papel[campo] = G.clamp(v, min, max);
+        });
+      });
     });
 
     $('#btnSugerir').addEventListener('click', sugerir);

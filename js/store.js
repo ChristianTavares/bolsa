@@ -31,6 +31,19 @@ App.Store = (function () {
     a.tipo = a.tipo || 'Sala de estar';
     a.lux = +a.lux > 0 ? +a.lux : 150;        // lux alvo do ambiente
     a.refl = ['claras', 'medias', 'escuras', 'nenhuma'].indexOf(a.refl) >= 0 ? a.refl : 'claras';
+    const pp = a.papel || {};
+    a.papel = {
+      largura: +pp.largura > 0 ? +pp.largura : 0.53,
+      comprimento: +pp.comprimento > 0 ? +pp.comprimento : 10,
+      rapport: +pp.rapport >= 0 ? +pp.rapport : 0,
+      margem: +pp.margem >= 0 ? +pp.margem : 0.10,
+      paredes: {
+        top: !!(pp.paredes && pp.paredes.top),
+        right: !!(pp.paredes && pp.paredes.right),
+        bottom: !!(pp.paredes && pp.paredes.bottom),
+        left: !!(pp.paredes && pp.paredes.left),
+      },
+    };
     a.items = Array.isArray(a.items) ? a.items : [];
     a.items.forEach((i) => {
       i.id = i.id || uid();
@@ -211,7 +224,7 @@ App.Store = (function () {
 
   return {
     uid, load, get, update, begin, live, commit, cancelTx, undo, redo, replace,
-    subscribe, activeArea, activeMovel, findItem, totalArea, projetoExemplo, luz,
+    subscribe, activeArea, activeMovel, findItem, totalArea, projetoExemplo, luz, normalizeArea,
     canUndo: () => past.length > 0,
     canRedo: () => future.length > 0,
   };

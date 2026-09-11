@@ -201,7 +201,8 @@ App.presets = (function () {
         });
       }
     });
-    return a;
+    // passa pela normalização do store para nascer com todos os campos
+    return App.Store.normalizeArea(a);
   }
 
   return { itens, categorias, cores, luzes, ambientes, areas, criarArea };

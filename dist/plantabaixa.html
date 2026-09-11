@@ -315,8 +315,9 @@ input[type=range]{width:100%;accent-color:var(--brand)}
     <div class="sheet-grip" id="sheetGrip"></div>
     <nav class="tabs" role="tablist" id="tabsAmb">
       <button class="tab is-active" data-tab="areas" role="tab">Áreas</button>
-      <button class="tab" data-tab="add" role="tab">Adicionar</button>
+      <button class="tab" data-tab="add" role="tab">Móveis</button>
       <button class="tab" data-tab="luz" role="tab">Luz</button>
+      <button class="tab" data-tab="papel" role="tab">Papel</button>
       <button class="tab" data-tab="props" role="tab">Editar</button>
     </nav>
     <nav class="tabs" role="tablist" id="tabsMob" hidden>
@@ -376,6 +377,27 @@ input[type=range]{width:100%;accent-color:var(--brand)}
       <p class="muted small" style="margin:14px 0 6px"><b>Complementar</b> — spots, downlights, fita, arandela</p>
       <div class="catalog" id="luzCatSpot"></div>
       <ul class="item-list" id="luzList"></ul>
+    </div>
+
+    <div class="pane" id="pane-papel">
+      <p class="muted small" style="margin:0 0 8px">Marque as paredes que vão receber papel.</p>
+      <div id="papelParedes"></div>
+      <hr>
+      <p class="muted small" style="margin:10px 0 6px"><b>O rolo que você vai comprar</b></p>
+      <div class="row">
+        <div class="field"><label for="ppLarg">Largura (m)</label>
+          <input id="ppLarg" inputmode="decimal" value="0,53"></div>
+        <div class="field"><label for="ppComp">Comprimento (m)</label>
+          <input id="ppComp" inputmode="decimal" value="10"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label for="ppRap">Rapport (m)</label>
+          <input id="ppRap" inputmode="decimal" value="0"></div>
+        <div class="field"><label for="ppMarg">Margem de corte (m)</label>
+          <input id="ppMarg" inputmode="decimal" value="0,10"></div>
+      </div>
+      <p class="muted small">Rapport é de quanto em quanto o desenho se repete na vertical — vem na etiqueta. Liso = 0.</p>
+      <div id="papelResumo"></div>
     </div>
 
     <div class="pane" id="pane-moveis">
@@ -865,7 +887,8 @@ App.presets = (function () {
         });
       }
     });
-    return a;
+    // passa pela normalização do store para nascer com todos os campos
+    return App.Store.normalizeArea(a);
   }
 
   return { itens, categorias, cores, luzes, ambientes, areas, criarArea };
@@ -905,6 +928,19 @@ App.Store = (function () {
     a.tipo = a.tipo || 'Sala de estar';
     a.lux = +a.lux > 0 ? +a.lux : 150;        // lux alvo do ambiente
     a.refl = ['claras', 'medias', 'escuras', 'nenhuma'].indexOf(a.refl) >= 0 ? a.refl : 'claras';
+    const pp = a.papel || {};
+    a.papel = {
+      largura: +pp.largura > 0 ? +pp.largura : 0.53,
+      comprimento: +pp.comprimento > 0 ? +pp.comprimento : 10,
+      rapport: +pp.rapport >= 0 ? +pp.rapport : 0,
+      margem: +pp.margem >= 0 ? +pp.margem : 0.10,
+      paredes: {
+        top: !!(pp.paredes && pp.paredes.top),
+        right: !!(pp.paredes && pp.paredes.right),
+        bottom: !!(pp.paredes && pp.paredes.bottom),
+        left: !!(pp.paredes && pp.paredes.left),
+      },
+    };
     a.items = Array.isArray(a.items) ? a.items : [];
     a.items.forEach((i) => {
       i.id = i.id || uid();
@@ -1085,7 +1121,7 @@ App.Store = (function () {
 
   return {
     uid, load, get, update, begin, live, commit, cancelTx, undo, redo, replace,
-    subscribe, activeArea, activeMovel, findItem, totalArea, projetoExemplo, luz,
+    subscribe, activeArea, activeMovel, findItem, totalArea, projetoExemplo, luz, normalizeArea,
     canUndo: () => past.length > 0,
     canRedo: () => future.length > 0,
   };
@@ -1963,6 +1999,72 @@ App.marcenaria = (function () {
 })();
 </script>
 <script>
+/* Papel de parede: metragem por parede e quantos rolos comprar.
+   A conta que vale é a de panos (tiras verticais), não m² ÷ área do rolo:
+   sobra de rolo que não dá a altura do pé-direito é perda. */
+window.App = window.App || {};
+
+App.papel = (function () {
+  const G = App.geo;
+  const NOMES = { top: 'Superior', right: 'Direita', bottom: 'Inferior', left: 'Esquerda' };
+  const ORDEM = ['top', 'right', 'bottom', 'left'];
+
+  const padrao = () => ({
+    largura: 0.53, comprimento: 10, rapport: 0, margem: 0.10,
+    paredes: { top: false, right: false, bottom: false, left: false },
+  });
+
+  const conf = (area) => Object.assign(padrao(), area.papel || {});
+
+  const comprimentoParede = (area, w) => (w === 'top' || w === 'bottom') ? area.w : area.h;
+
+  /* Área cheia, vãos e área líquida de uma parede. */
+  function parede(area, w) {
+    const L = comprimentoParede(area, w);
+    const bruta = L * area.pd;
+    const vaos = area.items
+      .filter((i) => i.type === 'opening' && i.wall === w)
+      .reduce((t, i) => t + i.width * i.altura, 0);
+    return { wall: w, nome: NOMES[w], L, bruta, vaos, liquida: Math.max(0, bruta - vaos) };
+  }
+
+  /* Altura de corte de cada pano, já com margem e rapport. */
+  function alturaPano(area, c) {
+    const base = area.pd + (+c.margem || 0);
+    if (!(c.rapport > 0)) return base;
+    return Math.ceil(base / c.rapport) * c.rapport;
+  }
+
+  function calcular(area) {
+    const c = conf(area);
+    const hp = alturaPano(area, c);
+    const porRolo = Math.floor((c.comprimento || 0) / hp);
+    const itens = ORDEM.filter((w) => c.paredes[w]).map((w) => {
+      const p = parede(area, w);
+      const panos = Math.ceil(p.L / c.largura);
+      return Object.assign(p, {
+        panos,
+        rolosSozinha: porRolo > 0 ? Math.ceil(panos / porRolo) : 0,
+      });
+    });
+    const panos = itens.reduce((t, i) => t + i.panos, 0);
+    const liquida = itens.reduce((t, i) => t + i.liquida, 0);
+    const bruta = itens.reduce((t, i) => t + i.bruta, 0);
+    const rolos = porRolo > 0 ? Math.ceil(panos / porRolo) : 0;
+    const rolosPorParede = itens.reduce((t, i) => t + i.rolosSozinha, 0);
+    const usado = panos * hp;
+    const comprado = rolos * c.comprimento;
+    return {
+      c, itens, hp, porRolo, panos, liquida, bruta, rolos, rolosPorParede,
+      sobra: Math.max(0, comprado - usado),
+      m2Rolo: c.largura * c.comprimento,
+    };
+  }
+
+  return { calcular, parede, conf, padrao, NOMES, ORDEM, comprimentoParede };
+})();
+</script>
+<script>
 /* Salvar arquivos: usa a capability do Artifact quando existe e cai no
    link <a download> quando a página está numa aba normal. */
 window.App = window.App || {};
@@ -2661,6 +2763,27 @@ App.render = (function () {
 
     // nome + área do cômodo, sempre legível por cima dos móveis
     roomLabel(ctx, area, X(area.w / 2), Y(area.h / 2));
+
+    // paredes marcadas para papel
+    if (area.papel && area.papel.paredes) {
+      const faces = {
+        top: [[0, 0], [area.w, 0]], bottom: [[0, area.h], [area.w, area.h]],
+        left: [[0, 0], [0, area.h]], right: [[area.w, 0], [area.w, area.h]],
+      };
+      ctx.save();
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = '#8a5cd6';
+      ctx.lineCap = 'round';
+      Object.keys(faces).forEach((w) => {
+        if (!area.papel.paredes[w]) return;
+        const [p1, p2] = faces[w];
+        ctx.beginPath();
+        ctx.moveTo(X(p1[0]), Y(p1[1]));
+        ctx.lineTo(X(p2[0]), Y(p2[1]));
+        ctx.stroke();
+      });
+      ctx.restore();
+    }
 
     // luminárias por último: são o que se procura no plano de luz
     luzes.forEach((i) => drawLight(ctx, i, v, X, Y, i.id === sel));
@@ -3980,7 +4103,7 @@ App.UI = (function () {
   let secao = 'amb';   // 'amb' = ambientes | 'mob' = marcenaria
 
   const GRUPO = {
-    areas: 'amb', add: 'amb', luz: 'amb', props: 'amb',
+    areas: 'amb', add: 'amb', luz: 'amb', papel: 'amb', props: 'amb',
     moveis: 'mob', modulos: 'mob', corte: 'mob',
   };
 
@@ -4122,10 +4245,10 @@ App.UI = (function () {
         });
         toast('Área atualizada');
       } else {
-        const na = {
+        const na = S.normalizeArea({
           id: S.uid(), name, w, h, wall, pd, tipo, lux, refl: 'claras',
           color: $('#aColor').value, items: [],
-        };
+        });
         S.update((p) => { p.areas.push(na); p.activeId = na.id; });
         E.select(null);
         toast('Área criada');
@@ -4255,6 +4378,55 @@ App.UI = (function () {
           </span>
         </li>`).join('')
       : '<li class="muted small" style="padding:10px 2px">Nenhuma luminária ainda. Escolha uma acima — ela entra no teto, no centro da tela.</li>';
+  }
+
+  /* ---------- papel de parede ---------- */
+  function renderPapel() {
+    if (secao !== 'amb') return;
+    const a = S.activeArea();
+    if (!a) return;
+    const P = App.papel;
+    const c = P.conf(a);
+
+    ['ppLarg', 'ppComp', 'ppRap', 'ppMarg'].forEach((id, i) => {
+      const v = [c.largura, c.comprimento, c.rapport, c.margem][i];
+      setVal(id, G.num(v));
+    });
+
+    const r = P.calcular(a);
+    $('#papelParedes').innerHTML = P.ORDEM.map((w) => {
+      const p = P.parede(a, w);
+      const on = c.paredes[w];
+      const panos = Math.ceil(p.L / c.largura);
+      return `
+        <button class="item-row ${on ? 'is-active' : ''}" data-parede="${w}" style="width:100%;text-align:left">
+          <span class="dot" style="background:${on ? '#4c5bd4' : '#dde1e9'}"></span>
+          <span class="nm">${p.nome} · ${G.num(p.L)} × ${G.num(a.pd)} m</span>
+          <span class="sz">${G.num(p.liquida)} m²${p.vaos > 0 ? ' (−' + G.num(p.vaos) + ')' : ''} · ${panos} panos</span>
+        </button>`;
+    }).join('');
+
+    if (!r.itens.length) {
+      $('#papelResumo').innerHTML = '<p class="muted small" style="margin-top:12px">Escolha ao menos uma parede para ver quantos rolos comprar.</p>';
+      return;
+    }
+    const semAltura = r.porRolo < 1;
+    $('#papelResumo').innerHTML = `
+      <div class="luz-card" style="margin-top:12px">
+        <div class="luz-linha"><span>Paredes escolhidas</span><b>${r.itens.length}</b></div>
+        <div class="luz-linha"><span>Área líquida</span><b>${G.num(r.liquida)} m²</b></div>
+        <div class="luz-linha"><span>Panos de ${G.num(r.hp)} m</span><b>${r.panos}</b></div>
+        <div class="luz-linha"><span>Panos por rolo</span><b>${r.porRolo}</b></div>
+        <hr>
+        <div class="luz-linha"><span><b>Rolos a comprar</b></span><b>${semAltura ? '—' : r.rolos}</b></div>
+        <div class="luz-linha"><span>Com 1 de reserva</span><b>${semAltura ? '—' : r.rolos + 1}</b></div>
+        <div class="luz-bar ${semAltura ? '' : 'ok'}"><i style="width:${semAltura ? 0 : Math.min(100, Math.round((r.panos / Math.max(1, r.rolos * r.porRolo)) * 100))}%"></i></div>
+        <p class="luz-msg ${semAltura ? 'falta' : 'ok'}">${semAltura
+          ? `Um rolo de ${G.num(c.comprimento)} m não dá nem um pano de ${G.num(r.hp)} m. Confira o comprimento do rolo.`
+          : `Sobra ${G.num(r.sobra)} m de papel (${G.num(r.sobra * c.largura)} m²).`}</p>
+        ${r.rolosPorParede > r.rolos ? `<p class="muted small">Se o instalador não aproveitar sobra de uma parede na outra, vão ${r.rolosPorParede} rolos.</p>` : ''}
+        <p class="muted small">Cada rolo cobre ${G.num(r.m2Rolo)} m², mas o que conta é caber ${r.porRolo} pano${r.porRolo > 1 ? 's' : ''} de ${G.num(r.hp)} m. Vãos de porta e janela não foram descontados na conta de rolos — o pano é cortado inteiro e a sobra vira retalho.</p>
+      </div>`;
   }
 
   /* ---------- sugestão de spots ---------- */
@@ -4913,6 +5085,7 @@ App.UI = (function () {
       renderItems();
       renderLuz();
       renderSugestao();
+      renderPapel();
       renderMovel();
       renderModulos();
       renderCorte();
@@ -5051,6 +5224,31 @@ App.UI = (function () {
     $('#reflSel').addEventListener('change', () => {
       S.update(() => { S.activeArea().refl = $('#reflSel').value; });
       E.draw();
+    });
+
+    $('#papelParedes').addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-parede]');
+      if (!b) return;
+      const w = b.dataset.parede;
+      S.update(() => {
+        const a = S.activeArea();
+        if (!a.papel) a.papel = App.papel.padrao();
+        a.papel.paredes[w] = !a.papel.paredes[w];
+      });
+      E.draw();
+    });
+
+    [['ppLarg', 'largura', 0.2, 1.4], ['ppComp', 'comprimento', 1, 100],
+     ['ppRap', 'rapport', 0, 2], ['ppMarg', 'margem', 0, 0.5]].forEach(([id, campo, min, max]) => {
+      $('#' + id).addEventListener('change', () => {
+        const v = G.parseNum($('#' + id).value);
+        if (!Number.isFinite(v)) { render(); return; }
+        S.update(() => {
+          const a = S.activeArea();
+          if (!a.papel) a.papel = App.papel.padrao();
+          a.papel[campo] = G.clamp(v, min, max);
+        });
+      });
     });
 
     $('#btnSugerir').addEventListener('click', sugerir);
